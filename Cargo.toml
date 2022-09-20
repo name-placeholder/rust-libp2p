@@ -63,6 +63,7 @@ uds = ["dep:libp2p-uds"]
 wasm-bindgen = ["futures-timer/wasm-bindgen", "instant/wasm-bindgen", "getrandom/js", "rand/wasm-bindgen"]
 wasm-ext = ["dep:libp2p-wasm-ext"]
 wasm-ext-websocket = ["wasm-ext", "libp2p-wasm-ext?/websocket"]
+wasm-ext-webrtc = ["wasm-ext", "libp2p-wasm-ext?/webrtc"]
 websocket = ["dep:libp2p-websocket"]
 yamux = ["dep:libp2p-yamux"]
 secp256k1 = ["libp2p-core/secp256k1"]
@@ -100,6 +101,7 @@ libp2p-swarm-derive = { version = "0.30.0", path = "swarm-derive" }
 libp2p-uds = { version = "0.35.0", path = "transports/uds", optional = true }
 libp2p-wasm-ext = { version = "0.36.0", path = "transports/wasm-ext", default-features = false, optional = true }
 libp2p-yamux = { version = "0.40.0", path = "muxers/yamux", optional = true }
+libp2p-gossipsub = { version = "0.41.0", path = "protocols/gossipsub", optional = true }
 multiaddr = { version = "0.14.0" }
 parking_lot = "0.12.0"
 pin-project = "1.0.0"
@@ -112,9 +114,6 @@ libp2p-dns = { version = "0.36.0", path = "transports/dns", optional = true, def
 libp2p-mdns = { version = "0.40.0", path = "protocols/mdns", optional = true, default-features = false }
 libp2p-tcp = { version = "0.36.0", path = "transports/tcp", default-features = false, optional = true }
 libp2p-websocket = { version = "0.38.0", path = "transports/websocket", optional = true }
-
-[target.'cfg(not(target_os = "unknown"))'.dependencies]
-libp2p-gossipsub = { version = "0.41.0", path = "protocols/gossipsub", optional = true }
 
 [dev-dependencies]
 async-std = { version = "1.6.2", features = ["attributes"] }

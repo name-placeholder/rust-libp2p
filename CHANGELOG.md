@@ -833,7 +833,7 @@ must not be skipped!
 - Reworked the API of `Multiaddr`.
 - Removed the `ToMultiaddr` trait in favour of `TryFrom`.
 - Added `Swarm::ban_peer_id` and `Swarm::unban_peer_id`.
-- The `TPeerId` generic parameter of `RawSwarm` is now `TConnInfo` and must now implement a `ConnectionInfo` trait.
+- The `TPeerId` generic parameter of `RawSwarm` is now `TConnInfo` and must now implement a `Connection` trait.
 - Reworked the `PingEvent`.
 - Renamed `KeepAlive::Forever` to `Yes` and `KeepAlive::Now` to `No`.
 

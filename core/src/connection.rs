@@ -20,6 +20,20 @@
 
 use crate::multiaddr::{Multiaddr, Protocol};
 
+pub trait Connection {
+    /// Should be `Some(_)` if transport itself handles authentication.
+    fn remote_peer_id(&self) -> Option<crate::PeerId> {
+        None
+    }
+}
+
+impl<C> Connection for multistream_select::Negotiated<C>
+where C: Connection {
+    fn remote_peer_id(&self) -> Option<crate::PeerId> {
+        self.inner_completed_io().and_then(|io| io.remote_peer_id())
+    }
+}
+
 /// Connection identifier.
 #[derive(Debug, Copy, Clone, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ConnectionId(usize);

@@ -68,7 +68,7 @@ pub mod signed_envelope;
 pub mod transport;
 pub mod upgrade;
 
-pub use connection::{ConnectedPoint, Endpoint};
+pub use connection::{ConnectedPoint, Connection, Endpoint};
 pub use identity::PublicKey;
 pub use multiaddr::Multiaddr;
 pub use multihash;

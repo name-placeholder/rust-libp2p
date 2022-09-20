@@ -51,6 +51,15 @@ pub struct Negotiated<TInner> {
     state: State<TInner>,
 }
 
+impl<TInner> Negotiated<TInner> {
+    pub fn inner_completed_io(&self) -> Option<&TInner> {
+        match &self.state {
+            State::Completed { io } => Some(io),
+            _ => None
+        }
+    }
+}
+
 /// A `Future` that waits on the completion of protocol negotiation.
 #[derive(Debug)]
 pub struct NegotiatedComplete<TInner> {
