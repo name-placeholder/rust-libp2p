@@ -65,7 +65,8 @@ pub use libp2p_dns as dns;
 #[doc(inline)]
 pub use libp2p_floodsub as floodsub;
 #[cfg(feature = "gossipsub")]
-#[cfg(not(target_os = "unknown"))]
+#[cfg_attr(docsrs, doc(cfg(feature = "gossipsub")))]
+// #[cfg(not(target_os = "unknown"))]
 #[doc(inline)]
 pub use libp2p_gossipsub as gossipsub;
 #[cfg(feature = "identify")]

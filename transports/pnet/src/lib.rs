@@ -48,6 +48,8 @@ use std::{
     task::{Context, Poll},
 };
 
+use libp2p_core::Connection;
+
 const KEY_SIZE: usize = 32;
 const NONCE_SIZE: usize = 24;
 const WRITE_BUFFER_SIZE: usize = 1024;
@@ -236,6 +238,13 @@ pub struct PnetOutput<S> {
     #[pin]
     inner: CryptWriter<S>,
     read_cipher: XSalsa20,
+}
+
+impl<C> Connection for PnetOutput<C>
+where C: Connection {
+    fn remote_peer_id(&self) -> Option<libp2p_core::PeerId> {
+        self.inner.remote_peer_id()
+    }
 }
 
 impl<S: AsyncRead + AsyncWrite> PnetOutput<S> {

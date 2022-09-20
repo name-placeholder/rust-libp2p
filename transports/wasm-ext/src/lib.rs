@@ -38,15 +38,19 @@ use futures::{future::Ready, prelude::*, ready, stream::SelectAll};
 use libp2p_core::{
     connection::Endpoint,
     transport::{ListenerId, TransportError, TransportEvent},
-    Multiaddr, Transport,
+    Multiaddr, Transport, identity::Keypair, PublicKey,
 };
 use parity_send_wrapper::SendWrapper;
 use std::{collections::VecDeque, error, fmt, io, mem, pin::Pin, task::Context, task::Poll};
 use wasm_bindgen::{prelude::*, JsCast};
 use wasm_bindgen_futures::JsFuture;
 
+#[cfg(feature = "webrtc")]
+pub mod dtls;
+
 /// Contains the definition that one must match on the JavaScript side.
 pub mod ffi {
+    use libp2p_core::{identity::Keypair, PublicKey, PeerId};
     use wasm_bindgen::prelude::*;
 
     #[wasm_bindgen]
@@ -99,6 +103,9 @@ pub mod ffi {
         #[wasm_bindgen(method, catch)]
         pub fn write(this: &Connection, data: &[u8]) -> Result<js_sys::Promise, JsValue>;
 
+        #[wasm_bindgen(method)]
+        pub fn remote_pub_key(this: &Connection) -> Option<js_sys::Uint8Array>;
+
         /// Shuts down the writing side of the connection. After this has been called, the `write`
         /// method will no longer be called.
         #[wasm_bindgen(method, catch)]
@@ -143,6 +150,76 @@ pub mod ffi {
     extern "C" {
         /// Returns a `Transport` implemented using websockets.
         pub fn websocket_transport() -> Transport;
+    }
+
+    #[cfg(feature = "webrtc")]
+    #[wasm_bindgen]
+    pub struct Crypto {
+        keypair: Keypair,
+    }
+
+    impl Crypto {
+        pub fn new(keypair: Keypair) -> Self {
+            Self { keypair }
+        }
+    }
+
+    #[cfg(feature = "webrtc")]
+    #[wasm_bindgen]
+    impl Crypto {
+        pub fn pub_key_as_protobuf(&self) -> Vec<u8> {
+            self.keypair.public().to_protobuf_encoding()
+        }
+
+        pub fn peer_id_as_b58(&self) -> String {
+            self.keypair.public().to_peer_id().to_base58()
+        }
+
+        pub fn sign(&self, msg: &[u8]) -> Result<Vec<u8>, JsError> {
+            Ok(self.keypair.sign(msg)?)
+        }
+
+        pub fn pub_key_as_protobuf_to_peer_id_as_b58(&self, pub_key_as_protobuf: &[u8]) -> Result<String, JsError> {
+            // return Err(JsError::new(&format!("len: {}, input: {:?}, result: {:?}", pub_key_as_protobuf.len(), pub_key_as_protobuf, PublicKey::from_protobuf_encoding(&pub_key_as_protobuf))));
+            let pub_key = PublicKey::from_protobuf_encoding(&pub_key_as_protobuf)?;
+            Ok(pub_key.to_peer_id().to_string())
+        }
+
+        pub fn assert_signature(&self, pub_key_as_protobuf: &[u8], msg: &[u8], sig: &[u8]) -> Result<(), JsError> {
+            let pub_key = PublicKey::from_protobuf_encoding(&*pub_key_as_protobuf)?;
+            if pub_key.verify(msg, sig) {
+                Ok(())
+            } else {
+                Err(JsError::new("Identity handshake failed! Invalid signature."))
+            }
+        }
+
+        pub fn pub_key_as_protobuf_to_peer_id(&self, pub_key_as_protobuf: &[u8], expected_peer_id: &str) -> Result<(), JsError> {
+            let pub_key = PublicKey::from_protobuf_encoding(pub_key_as_protobuf)?;
+            let peer_id = pub_key.to_peer_id().to_string();
+            if peer_id == expected_peer_id {
+                Ok(())
+            } else {
+                Err(JsError::new(&format!("Identity handshake failed! Peer's ID doesn't match the expected one. `expected` => '{}', `found` => '{}'", expected_peer_id, peer_id)))
+            }
+        }
+    }
+
+    #[cfg(feature = "webrtc")]
+    #[wasm_bindgen(module = "/src/webrtc.js")]
+    extern "C" {
+        /// Returns a `Transport` implemented using websockets.
+        // pub fn webrtc_transport() -> Transport;
+        // pub fn webrtc_transport() -> js_sys::Promise;
+        pub fn webrtc_transport(crypto: Crypto) -> js_sys::Promise;
+    }
+}
+
+pub async fn webrtc_transport(keypair: Keypair) -> ffi::Transport {
+    let crypto = ffi::Crypto::new(keypair);
+    match JsFuture::from(ffi::webrtc_transport(crypto)).await {
+        Ok(v) => unsafe { std::mem::transmute(v) },
+        Err(err) => panic!("{:?}", err),
     }
 }
 
@@ -437,6 +514,8 @@ pub struct Connection {
     /// underlying transport is ready to accept data again. This promise is stored here.
     /// If this is `Some`, we must wait until the contained promise is resolved to write again.
     previous_write_promise: Option<SendWrapper<JsFuture>>,
+
+    remote_peer_id: libp2p_core::PeerId,
 }
 
 impl Connection {
@@ -444,13 +523,69 @@ impl Connection {
     fn new(inner: ffi::Connection) -> Self {
         let read_iterator = inner.read();
 
+        // TODO(zura): remove unwraps
+        let bytes: Vec<u8> = inner.remote_pub_key().unwrap().to_vec();
+        let remote_pub_key = PublicKey::from_protobuf_encoding(&bytes).unwrap();
+        let remote_peer_id = remote_pub_key.to_peer_id();
+
         Connection {
             inner: SendWrapper::new(inner),
             read_iterator: SendWrapper::new(read_iterator),
             read_state: ConnectionReadState::PendingData(Vec::new()),
             previous_write_promise: None,
+            remote_peer_id,
         }
     }
+
+    pub fn remote_peer_id(&self) -> &libp2p_core::PeerId {
+        &self.remote_peer_id
+    }
+}
+
+impl libp2p_core::Connection for Connection {
+    fn remote_peer_id(&self) -> Option<libp2p_core::PeerId> {
+        Some(self.remote_peer_id().clone())
+    }
+}
+
+// TODO(zura): cleanup and remove panics.
+fn peer_id_from_x509_cert_bytes(bytes: &[u8]) -> libp2p_core::PeerId {
+    let cert = x509_parser::parse_x509_certificate(&bytes).unwrap();
+    let pub_key = match cert.1.tbs_certificate.public_key().parsed() {
+        Ok(x509_parser::public_key::PublicKey::EC(ec_point)) => {
+            let ecdsa = libp2p_core::identity::ecdsa::PublicKey::from_bytes(ec_point.data());
+            // TODO(zura)
+            libp2p_core::PublicKey::Ecdsa(ecdsa.unwrap())
+        }
+        // TODO(zura)
+        _ => unimplemented!(),
+    };
+    pub_key.to_peer_id()
+}
+
+#[test]
+fn test_peer_id_from_x509_cert_bytes() {
+    let bytes: Vec<u8> = vec![
+        48, 130, 1, 34, 48, 129, 201, 160, 3, 2, 1, 2, 2, 17, 3, 238, 253, 15, 63, 135, 218, 213,
+        234, 171, 162, 1, 234, 134, 36, 102, 101, 48, 10, 6, 8, 42, 134, 72, 206, 61, 4, 3, 2, 48,
+        17, 49, 15, 48, 13, 6, 3, 85, 4, 3, 19, 6, 87, 101, 98, 82, 84, 67, 48, 30, 23, 13, 50, 50,
+        48, 57, 49, 52, 49, 48, 50, 55, 51, 53, 90, 23, 13, 50, 50, 49, 48, 49, 52, 49, 48, 50, 55,
+        51, 53, 90, 48, 17, 49, 15, 48, 13, 6, 3, 85, 4, 3, 19, 6, 87, 101, 98, 82, 84, 67, 48, 89,
+        48, 19, 6, 7, 42, 134, 72, 206, 61, 2, 1, 6, 8, 42, 134, 72, 206, 61, 3, 1, 7, 3, 66, 0, 4,
+        252, 218, 246, 195, 200, 160, 150, 229, 30, 43, 103, 108, 207, 211, 206, 117, 126, 133,
+        105, 124, 91, 10, 76, 49, 80, 57, 69, 60, 11, 89, 228, 35, 12, 140, 89, 8, 75, 254, 217,
+        35, 86, 132, 118, 216, 122, 234, 55, 106, 253, 58, 92, 227, 81, 130, 36, 166, 148, 0, 243,
+        217, 118, 134, 177, 220, 163, 2, 48, 0, 48, 10, 6, 8, 42, 134, 72, 206, 61, 4, 3, 2, 3, 72,
+        0, 48, 69, 2, 32, 60, 50, 225, 235, 6, 45, 39, 233, 7, 113, 244, 199, 143, 158, 252, 175,
+        85, 78, 157, 61, 117, 93, 105, 62, 230, 11, 110, 164, 206, 187, 115, 205, 2, 33, 0, 200,
+        229, 21, 158, 184, 247, 154, 49, 0, 15, 199, 207, 237, 49, 166, 153, 80, 65, 155, 117, 51,
+        178, 218, 21, 159, 158, 224, 82, 112, 69, 156, 237,
+    ];
+    let peer_id_b58 = peer_id_from_x509_cert_bytes(&bytes).to_base58();
+    assert_eq!(
+        peer_id_b58,
+        "QmegiCDEULhpyW55B2qQNMSURWBKSR72445DS6JgQsfkPj"
+    )
 }
 
 /// Reading side of the connection.

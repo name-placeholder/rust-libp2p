@@ -2957,6 +2957,7 @@ dependencies = [
  "parity-send-wrapper",
  "wasm-bindgen",
  "wasm-bindgen-futures",
+ "x509-parser 0.14.0",
 ]
 
 [[package]]
@@ -5251,8 +5252,7 @@ checksum = "0046fef7e28c3804e5e38bfa31ea2a0f73905319b677e57ebe37e49358989b5d"
 [[package]]
 name = "wasm-timer"
 version = "0.2.5"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "be0ecb0db480561e9a7642b5d3e4187c128914e58aa84330b9493e3eb68c5e7f"
+source = "git+https://github.com/fusetim/wasm-timer?branch=tim-add-missing-methods#39e1c2818944f804d68d64dae0d5639d22b0e59e"
 dependencies = [
  "futures",
  "js-sys",
@@ -5740,6 +5740,24 @@ dependencies = [
  "nom",
  "oid-registry 0.4.0",
  "ring",
+ "rusticata-macros",
+ "thiserror",
+ "time",
+]
+
+[[package]]
+name = "x509-parser"
+version = "0.14.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e0ecbeb7b67ce215e40e3cc7f2ff902f94a223acf44995934763467e7b1febc8"
+dependencies = [
+ "asn1-rs 0.5.1",
+ "base64 0.13.1",
+ "data-encoding",
+ "der-parser 8.1.0",
+ "lazy_static",
+ "nom",
+ "oid-registry 0.6.1",
  "rusticata-macros",
  "thiserror",
  "time",

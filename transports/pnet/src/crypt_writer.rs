@@ -28,6 +28,8 @@ use pin_project::pin_project;
 use salsa20::{cipher::StreamCipher, XSalsa20};
 use std::{fmt, pin::Pin};
 
+use libp2p_core::Connection;
+
 /// A writer that encrypts and forwards to an inner writer
 #[pin_project]
 pub struct CryptWriter<W> {
@@ -35,6 +37,13 @@ pub struct CryptWriter<W> {
     inner: W,
     buf: Vec<u8>,
     cipher: XSalsa20,
+}
+
+impl<C> Connection for CryptWriter<C>
+where C: Connection {
+    fn remote_peer_id(&self) -> Option<libp2p_core::PeerId> {
+        self.inner.remote_peer_id()
+    }
 }
 
 impl<W: AsyncWrite> CryptWriter<W> {
