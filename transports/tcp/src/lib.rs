@@ -98,7 +98,7 @@ impl PortReuse {
     /// Has no effect if port reuse is disabled.
     fn register(&mut self, ip: IpAddr, port: Port) {
         if let PortReuse::Enabled { listen_addrs } = self {
-            log::trace!("Registering for port reuse: {}:{}", ip, port);
+            log::debug!("Registering for port reuse: {}:{}", ip, port);
             listen_addrs
                 .write()
                 .expect("`register()` and `unregister()` never panic while holding the lock")
@@ -111,7 +111,7 @@ impl PortReuse {
     /// Has no effect if port reuse is disabled.
     fn unregister(&mut self, ip: IpAddr, port: Port) {
         if let PortReuse::Enabled { listen_addrs } = self {
-            log::trace!("Unregistering for port reuse: {}:{}", ip, port);
+            log::debug!("Unregistering for port reuse: {}:{}", ip, port);
             listen_addrs
                 .write()
                 .expect("`register()` and `unregister()` never panic while holding the lock")
@@ -479,7 +479,7 @@ where
             .map_err(TransportError::Other)?;
 
         if let Some(addr) = self.port_reuse.local_dial_addr(&socket_addr.ip()) {
-            log::trace!("Binding dial socket to listen socket {}", addr);
+            log::debug!("Binding dial socket to listen socket {}", addr);
             socket.bind(&addr.into()).map_err(TransportError::Other)?;
         }
 

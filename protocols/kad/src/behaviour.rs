@@ -1086,9 +1086,9 @@ where
         let local_id = self.kbuckets.local_key().preimage();
         let others_iter = peers.filter(|p| &p.node_id != local_id);
         if let Some(query) = self.queries.get_mut(query_id) {
-            log::trace!("Request to {:?} in query {:?} succeeded.", source, query_id);
+            log::debug!("Request to {:?} in query {:?} succeeded.", source, query_id);
             for peer in others_iter.clone() {
-                log::trace!(
+                log::debug!(
                     "Peer {:?} reported by {:?} in query {:?}.",
                     peer,
                     source,
@@ -1319,7 +1319,7 @@ where
     /// Handles a finished (i.e. successful) query.
     fn query_finished(&mut self, q: Query<QueryInner>) -> Option<Event> {
         let query_id = q.id();
-        log::trace!("Query {:?} finished.", query_id);
+        log::debug!("Query {:?} finished.", query_id);
         let result = q.into_result();
         match result.inner.info {
             QueryInfo::Bootstrap {
@@ -1557,7 +1557,7 @@ where
     /// Handles a query that timed out.
     fn query_timeout(&mut self, query: Query<QueryInner>) -> Option<Event> {
         let query_id = query.id();
-        log::trace!("Query {:?} timed out.", query_id);
+        log::debug!("Query {:?} timed out.", query_id);
         let result = query.into_result();
         match result.inner.info {
             QueryInfo::Bootstrap {
@@ -2346,7 +2346,7 @@ where
 
                             *step = step.next();
                         } else {
-                            log::trace!("Record with key {:?} not found at {}", key, source);
+                            log::debug!("Record with key {:?} not found at {}", key, source);
                             if let Caching::Enabled { max_peers } = self.caching {
                                 let source_key = kbucket::Key::from(source);
                                 let target_key = kbucket::Key::from(key.clone());

@@ -29,7 +29,7 @@
 mod crypt_writer;
 use crypt_writer::CryptWriter;
 use futures::prelude::*;
-use log::trace;
+use log::debug;
 use pin_project::pin_project;
 use rand::RngCore;
 use salsa20::{
@@ -212,7 +212,7 @@ impl PnetConfig {
     where
         TSocket: AsyncRead + AsyncWrite + Send + Unpin + 'static,
     {
-        trace!("exchanging nonces");
+        debug!("exchanging nonces");
         let mut local_nonce = [0u8; NONCE_SIZE];
         let mut remote_nonce = [0u8; NONCE_SIZE];
         rand::thread_rng().fill_bytes(&mut local_nonce);
@@ -225,7 +225,7 @@ impl PnetConfig {
             .read_exact(&mut remote_nonce)
             .await
             .map_err(PnetError::HandshakeError)?;
-        trace!("setting up ciphers");
+        debug!("setting up ciphers");
         let write_cipher = XSalsa20::new(&self.key.0.into(), &local_nonce.into());
         let read_cipher = XSalsa20::new(&self.key.0.into(), &remote_nonce.into());
         Ok(PnetOutput::new(socket, write_cipher, read_cipher))
@@ -242,7 +242,9 @@ pub struct PnetOutput<S> {
 }
 
 impl<C> Connection for PnetOutput<C>
-where C: Connection {
+where
+    C: Connection,
+{
     fn remote_peer_id(&self) -> Option<libp2p_core::PeerId> {
         self.inner.remote_peer_id()
     }
@@ -266,9 +268,9 @@ impl<S: AsyncRead + AsyncWrite> AsyncRead for PnetOutput<S> {
         let this = self.project();
         let result = this.inner.get_pin_mut().poll_read(cx, buf);
         if let Poll::Ready(Ok(size)) = &result {
-            trace!("read {} bytes", size);
+            debug!("read {} bytes", size);
             this.read_cipher.apply_keystream(&mut buf[..*size]);
-            trace!("decrypted {} bytes", size);
+            debug!("decrypted {} bytes", size);
         }
         result
     }

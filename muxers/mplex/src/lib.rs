@@ -54,6 +54,7 @@ where
     type Future = future::Ready<Result<Self::Output, io::Error>>;
 
     fn upgrade_inbound(self, socket: C, _: Self::Info) -> Self::Future {
+        log::debug!("mplex::upgrade_inbound");
         future::ready(Ok(Multiplex {
             #[allow(unknown_lints, clippy::arc_with_non_send_sync)] // `T` is not enforced to be `Send` but we don't want to constrain it either.
             io: Arc::new(Mutex::new(io::Multiplexed::new(socket, self))),
@@ -70,6 +71,7 @@ where
     type Future = future::Ready<Result<Self::Output, io::Error>>;
 
     fn upgrade_outbound(self, socket: C, _: Self::Info) -> Self::Future {
+        log::debug!("mplex::upgrade_outbound");
         future::ready(Ok(Multiplex {
             #[allow(unknown_lints, clippy::arc_with_non_send_sync)] // `T` is not enforced to be `Send` but we don't want to constrain it either.
             io: Arc::new(Mutex::new(io::Multiplexed::new(socket, self))),

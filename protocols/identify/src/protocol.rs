@@ -94,7 +94,7 @@ pub(crate) async fn send_identify<T>(io: T, info: Info) -> Result<Info, UpgradeE
 where
     T: AsyncWrite + Unpin,
 {
-    trace!("Sending: {:?}", info);
+    log::debug!("Sending: {:?}", info);
 
     let listen_addrs = info.listen_addrs.iter().map(|addr| addr.to_vec()).collect();
 
@@ -158,6 +158,8 @@ where
     .next()
     .await
     .ok_or(UpgradeError::StreamClosed)??;
+
+    log::debug!("Received: {:?}", info);
 
     Ok(info)
 }

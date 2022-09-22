@@ -188,7 +188,7 @@ impl EnabledHandler {
         }
 
         // new inbound substream. Replace the current one, if it exists.
-        log::trace!("New inbound substream request");
+        log::debug!("New inbound substream request");
         self.inbound_substream = Some(InboundSubstreamState::WaitingInput(substream));
     }
 

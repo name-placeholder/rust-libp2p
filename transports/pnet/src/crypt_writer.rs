@@ -40,7 +40,9 @@ pub(crate) struct CryptWriter<W> {
 }
 
 impl<C> Connection for CryptWriter<C>
-where C: Connection {
+where
+    C: Connection,
+{
     fn remote_peer_id(&self) -> Option<libp2p_core::PeerId> {
         self.inner.remote_peer_id()
     }
@@ -129,7 +131,7 @@ impl<W: AsyncWrite> AsyncWrite for CryptWriter<W> {
         let res = Pin::new(&mut *this.buf).poll_write(cx, buf);
         if let Poll::Ready(Ok(count)) = res {
             this.cipher.apply_keystream(&mut this.buf[0..count]);
-            trace!("encrypted {} bytes", count);
+            log::debug!("encrypted {} bytes", count);
         } else {
             debug_assert!(false);
         };
