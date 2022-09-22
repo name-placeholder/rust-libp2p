@@ -146,11 +146,11 @@ where
     }
 
     fn inject_mdns_packet(&mut self, packet: MdnsPacket, params: &impl PollParameters) {
-        log::trace!("received packet on iface {} {:?}", self.addr, packet);
+        log::debug!("received packet on iface {} {:?}", self.addr, packet);
         match packet {
             MdnsPacket::Query(query) => {
                 self.reset_timer();
-                log::trace!("sending response on iface {}", self.addr);
+                log::debug!("sending response on iface {}", self.addr);
                 for packet in build_query_response(
                     query.query_id(),
                     *params.local_peer_id(),
@@ -228,7 +228,7 @@ where
                 &packet,
                 SocketAddr::new(self.multicast_addr, 5353),
             ) {
-                Poll::Ready(Ok(_)) => log::trace!("sent packet on iface {}", self.addr),
+                Poll::Ready(Ok(_)) => log::debug!("sent packet on iface {}", self.addr),
                 Poll::Ready(Err(err)) => {
                     log::error!("error sending packet on iface {} {}", self.addr, err);
                 }
@@ -240,7 +240,7 @@ where
         }
 
         if Pin::new(&mut self.timeout).poll_next(cx).is_ready() {
-            log::trace!("sending query on iface {}", self.addr);
+            log::debug!("sending query on iface {}", self.addr);
             self.send_buffer.push_back(build_query());
         }
 

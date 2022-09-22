@@ -35,20 +35,18 @@
 use futures::{future::Ready, prelude::*, ready, stream::SelectAll};
 use libp2p_core::{
     connection::Endpoint,
+    identity::Keypair,
     transport::{ListenerId, TransportError, TransportEvent},
-    Multiaddr, Transport, identity::Keypair, PublicKey,
+    Multiaddr, PublicKey, Transport,
 };
 use parity_send_wrapper::SendWrapper;
 use std::{collections::VecDeque, error, fmt, io, mem, pin::Pin, task::Context, task::Poll};
 use wasm_bindgen::{prelude::*, JsCast};
 use wasm_bindgen_futures::JsFuture;
 
-#[cfg(feature = "webrtc")]
-pub mod dtls;
-
 /// Contains the definition that one must match on the JavaScript side.
 pub mod ffi {
-    use libp2p_core::{identity::Keypair, PublicKey, PeerId};
+    use libp2p_core::{identity::Keypair, PeerId, PublicKey};
     use wasm_bindgen::prelude::*;
 
     #[wasm_bindgen]
@@ -177,22 +175,36 @@ pub mod ffi {
             Ok(self.keypair.sign(msg)?)
         }
 
-        pub fn pub_key_as_protobuf_to_peer_id_as_b58(&self, pub_key_as_protobuf: &[u8]) -> Result<String, JsError> {
+        pub fn pub_key_as_protobuf_to_peer_id_as_b58(
+            &self,
+            pub_key_as_protobuf: &[u8],
+        ) -> Result<String, JsError> {
             // return Err(JsError::new(&format!("len: {}, input: {:?}, result: {:?}", pub_key_as_protobuf.len(), pub_key_as_protobuf, PublicKey::from_protobuf_encoding(&pub_key_as_protobuf))));
             let pub_key = PublicKey::from_protobuf_encoding(&pub_key_as_protobuf)?;
             Ok(pub_key.to_peer_id().to_string())
         }
 
-        pub fn assert_signature(&self, pub_key_as_protobuf: &[u8], msg: &[u8], sig: &[u8]) -> Result<(), JsError> {
+        pub fn assert_signature(
+            &self,
+            pub_key_as_protobuf: &[u8],
+            msg: &[u8],
+            sig: &[u8],
+        ) -> Result<(), JsError> {
             let pub_key = PublicKey::from_protobuf_encoding(&*pub_key_as_protobuf)?;
             if pub_key.verify(msg, sig) {
                 Ok(())
             } else {
-                Err(JsError::new("Identity handshake failed! Invalid signature."))
+                Err(JsError::new(
+                    "Identity handshake failed! Invalid signature.",
+                ))
             }
         }
 
-        pub fn pub_key_as_protobuf_to_peer_id(&self, pub_key_as_protobuf: &[u8], expected_peer_id: &str) -> Result<(), JsError> {
+        pub fn pub_key_as_protobuf_to_peer_id(
+            &self,
+            pub_key_as_protobuf: &[u8],
+            expected_peer_id: &str,
+        ) -> Result<(), JsError> {
             let pub_key = PublicKey::from_protobuf_encoding(pub_key_as_protobuf)?;
             let peer_id = pub_key.to_peer_id().to_string();
             if peer_id == expected_peer_id {

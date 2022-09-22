@@ -123,15 +123,15 @@ where
     // The handshake messages all start with a variable-length integer indicating the size.
     let mut framed_socket = Framed::new(socket, UviBytes::default());
 
-    trace!("starting handshake");
+    debug!("starting handshake");
     let context = HandshakeContext::new(config);
 
-    trace!("sending exchange to remote");
+    debug!("sending exchange to remote");
     framed_socket
         .send(BytesMut::from(&context.state.exchange_bytes[..]))
         .await?;
 
-    trace!("receiving the remote's exchange");
+    debug!("receiving the remote's exchange");
     let context = match framed_socket.next().await {
         Some(p) => context.with_remote(p?)?,
         None => {
@@ -141,7 +141,7 @@ where
         }
     };
 
-    trace!(
+    debug!(
         "received exchange from remote; pubkey = {:?}",
         context.state.public_key
     );

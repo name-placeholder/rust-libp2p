@@ -28,7 +28,9 @@ pub trait Connection {
 }
 
 impl<C> Connection for multistream_select::Negotiated<C>
-where C: Connection {
+where
+    C: Connection,
+{
     fn remote_peer_id(&self) -> Option<crate::PeerId> {
         self.inner_completed_io().and_then(|io| io.remote_peer_id())
     }

@@ -55,7 +55,7 @@ impl<TInner> Negotiated<TInner> {
     pub fn inner_completed_io(&self) -> Option<&TInner> {
         match &self.state {
             State::Completed { io } => Some(io),
-            _ => None
+            _ => None,
         }
     }
 }

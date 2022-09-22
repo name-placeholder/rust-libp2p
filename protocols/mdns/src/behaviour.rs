@@ -145,7 +145,7 @@ where
     }
 
     fn inject_new_listen_addr(&mut self, _id: ListenerId, _addr: &Multiaddr) {
-        log::trace!("waking interface state because listening address changed");
+        log::debug!("waking interface state because listening address changed");
         for iface in self.iface_states.values_mut() {
             iface.fire_timer();
         }

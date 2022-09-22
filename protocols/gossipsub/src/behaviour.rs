@@ -633,7 +633,7 @@ where
             return Err(PublishError::Duplicate);
         }
 
-        trace!("Publishing message: {:?}", msg_id);
+        debug!("Publishing message: {:?}", msg_id);
 
         let topic_hash = raw_message.topic.clone();
 
@@ -731,7 +731,7 @@ where
         // Send to peers we know are subscribed to the topic.
         let msg_bytes = event.encoded_len();
         for peer_id in recipient_peers.iter() {
-            trace!("Sending message to peer: {:?}", peer_id);
+            debug!("Sending message to peer: {:?}", peer_id);
             self.send_message(*peer_id, event.clone())?;
 
             if let Some(m) = self.metrics.as_mut() {
@@ -1210,7 +1210,7 @@ where
             }
         }
 
-        trace!("Handling IHAVE for peer: {:?}", peer_id);
+        debug!("Handling IHAVE for peer: {:?}", peer_id);
 
         let mut iwant_ids = HashSet::new();
 
@@ -1285,10 +1285,9 @@ where
                     Instant::now() + self.config.iwant_followup_time(),
                 );
             }
-            trace!(
+            debug!(
                 "IHAVE: Asking for the following messages from {}: {:?}",
-                peer_id,
-                iwant_ids_vec
+                peer_id, iwant_ids_vec
             );
 
             Self::control_pool_add(
@@ -1299,7 +1298,7 @@ where
                 },
             );
         }
-        trace!("Completed IHAVE handling for peer: {:?}", peer_id);
+        debug!("Completed IHAVE handling for peer: {:?}", peer_id);
     }
 
     /// Handles an IWANT control message. Checks our cache of messages. If the message exists it is
@@ -2084,7 +2083,7 @@ where
             self.events.push_back(event);
         }
 
-        trace!(
+        debug!(
             "Completed handling subscriptions from source: {:?}",
             propagation_source
         );
@@ -2459,7 +2458,7 @@ where
         }
 
         if self.peer_score.is_some() {
-            trace!("Mesh message deliveries: {:?}", {
+            debug!("Mesh message deliveries: {:?}", {
                 self.mesh
                     .iter()
                     .map(|(t, peers)| {
@@ -3083,10 +3082,9 @@ where
             if let Some(ip) = get_ip_addr(endpoint.get_remote_address()) {
                 peer_score.add_ip(peer_id, ip);
             } else {
-                trace!(
+                debug!(
                     "Couldn't extract ip from endpoint of peer {} with endpoint {:?}",
-                    peer_id,
-                    endpoint
+                    peer_id, endpoint
                 )
             }
         }
@@ -3161,10 +3159,9 @@ where
             if let Some(ip) = get_ip_addr(endpoint.get_remote_address()) {
                 peer_score.remove_ip(peer_id, &ip);
             } else {
-                trace!(
+                debug!(
                     "Couldn't extract ip from endpoint of peer {} with endpoint {:?}",
-                    peer_id,
-                    endpoint
+                    peer_id, endpoint
                 )
             }
         }
@@ -3292,19 +3289,17 @@ where
             if let Some(ip) = get_ip_addr(endpoint_old.get_remote_address()) {
                 peer_score.remove_ip(peer, &ip);
             } else {
-                trace!(
+                debug!(
                     "Couldn't extract ip from endpoint of peer {} with endpoint {:?}",
-                    peer,
-                    endpoint_old
+                    peer, endpoint_old
                 )
             }
             if let Some(ip) = get_ip_addr(endpoint_new.get_remote_address()) {
                 peer_score.add_ip(peer, ip);
             } else {
-                trace!(
+                debug!(
                     "Couldn't extract ip from endpoint of peer {} with endpoint {:?}",
-                    peer,
-                    endpoint_new
+                    peer, endpoint_new
                 )
             }
         }

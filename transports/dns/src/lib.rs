@@ -293,13 +293,13 @@ where
                             last_err = Some(e);
                         }
                         Ok(Resolved::One(ip)) => {
-                            log::trace!("Resolved {} -> {}", name, ip);
+                            log::debug!("Resolved {} -> {}", name, ip);
                             let addr = addr.replace(i, |_| Some(ip)).expect("`i` is a valid index");
                             unresolved.push(addr);
                         }
                         Ok(Resolved::Many(ips)) => {
                             for ip in ips {
-                                log::trace!("Resolved {} -> {}", name, ip);
+                                log::debug!("Resolved {} -> {}", name, ip);
                                 let addr =
                                     addr.replace(i, |_| Some(ip)).expect("`i` is a valid index");
                                 unresolved.push(addr);
@@ -313,7 +313,7 @@ where
                                 if a.ends_with(&suffix) {
                                     if n < MAX_TXT_RECORDS {
                                         n += 1;
-                                        log::trace!("Resolved {} -> {}", name, a);
+                                        log::debug!("Resolved {} -> {}", name, a);
                                         let addr =
                                             prefix.iter().chain(a.iter()).collect::<Multiaddr>();
                                         unresolved.push(addr);

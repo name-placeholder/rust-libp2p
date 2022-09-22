@@ -112,6 +112,14 @@ where
             version,
         ))
     }
+
+    pub fn as_authenticated<C>(self) -> Authenticated<T>
+    where
+        T: Transport<Output = (PeerId, C)>,
+        C: AsyncRead + AsyncWrite + Unpin,
+    {
+        Authenticated(self)
+    }
 }
 
 /// An upgrade that authenticates the remote peer, typically

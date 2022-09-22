@@ -1075,11 +1075,11 @@ fn advance_inbound_substream<TUserData>(
                 false,
             ),
             Poll::Ready(None) => {
-                trace!("Inbound substream: EOF");
+                log::debug!("Inbound substream: EOF");
                 (None, None, false)
             }
             Poll::Ready(Some(Err(e))) => {
-                trace!("Inbound substream error: {:?}", e);
+                log::debug!("Inbound substream error: {:?}", e);
                 (None, None, false)
             }
         },
