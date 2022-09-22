@@ -445,7 +445,7 @@ impl PeerScore {
 
     /// Adds a new ip to a peer, if the peer is not yet known creates a new peer_stats entry for it
     pub fn add_ip(&mut self, peer_id: &PeerId, ip: IpAddr) {
-        trace!("Add ip for peer {}, ip: {}", peer_id, ip);
+        debug!("Add ip for peer {}, ip: {}", peer_id, ip);
         let peer_stats = self.peer_stats.entry(*peer_id).or_default();
 
         // Mark the peer as connected (currently the default is connected, but we don't want to
@@ -465,20 +465,18 @@ impl PeerScore {
         if let Some(peer_stats) = self.peer_stats.get_mut(peer_id) {
             peer_stats.known_ips.remove(ip);
             if let Some(peer_ids) = self.peer_ips.get_mut(ip) {
-                trace!("Remove ip for peer {}, ip: {}", peer_id, ip);
+                debug!("Remove ip for peer {}, ip: {}", peer_id, ip);
                 peer_ids.remove(peer_id);
             } else {
-                trace!(
+                debug!(
                     "No entry in peer_ips for ip {} which should get removed for peer {}",
-                    ip,
-                    peer_id
+                    ip, peer_id
                 );
             }
         } else {
-            trace!(
+            debug!(
                 "No peer_stats for peer {} which should remove the ip {}",
-                peer_id,
-                ip
+                peer_id, ip
             );
         }
     }

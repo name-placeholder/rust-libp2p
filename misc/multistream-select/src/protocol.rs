@@ -389,7 +389,7 @@ where
         return Poll::Ready(None);
     };
 
-    log::trace!("Received message: {:?}", msg);
+    log::debug!("Received message: {:?}", msg);
 
     Poll::Ready(Some(Ok(msg)))
 }

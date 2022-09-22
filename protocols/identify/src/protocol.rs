@@ -161,7 +161,7 @@ pub(crate) async fn send<T>(io: T, info: Info) -> Result<(), UpgradeError>
 where
     T: AsyncWrite + Unpin,
 {
-    trace!("Sending: {:?}", info);
+    log::debug!("Sending: {:?}", info);
 
     let listen_addrs = info
         .listen_addrs
@@ -209,7 +209,7 @@ where
     .ok_or(UpgradeError::StreamClosed)??
     .try_into()?;
 
-    trace!("Received: {:?}", info);
+    log::debug!("Received: {:?}", info);
 
     Ok(info)
 }

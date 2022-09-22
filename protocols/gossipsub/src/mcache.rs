@@ -87,7 +87,7 @@ impl MessageCache {
                 entry.insert((msg, HashSet::default()));
                 self.history[0].push(cache_entry);
 
-                trace!("Put message {:?} in mcache", message_id);
+                debug!("Put message {:?} in mcache", message_id);
                 true
             }
         }
@@ -194,7 +194,7 @@ impl MessageCache {
                     );
                 }
             }
-            trace!("Remove message from the cache: {}", &entry.mid);
+            debug!("Remove message from the cache: {}", &entry.mid);
 
             self.iwant_counts.remove(&entry.mid);
         }

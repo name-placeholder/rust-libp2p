@@ -54,6 +54,7 @@ where
     type Future = future::Ready<Result<Self::Output, io::Error>>;
 
     fn upgrade_inbound(self, socket: C, _: Self::Info) -> Self::Future {
+        log::debug!("mplex::upgrade_inbound");
         future::ready(Ok(Multiplex {
             io: Arc::new(Mutex::new(io::Multiplexed::new(socket, self))),
         }))
@@ -69,6 +70,7 @@ where
     type Future = future::Ready<Result<Self::Output, io::Error>>;
 
     fn upgrade_outbound(self, socket: C, _: Self::Info) -> Self::Future {
+        log::debug!("mplex::upgrade_outbound");
         future::ready(Ok(Multiplex {
             io: Arc::new(Mutex::new(io::Multiplexed::new(socket, self))),
         }))

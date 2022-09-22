@@ -169,7 +169,7 @@ where
     fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         let mut this = Pin::into_inner(self);
         loop {
-            trace!("read state: {:?}", this.read_state);
+            debug!("read state: {:?}", this.read_state);
             match this.read_state {
                 ReadState::Ready => {
                     this.read_state = ReadState::ReadLen {
@@ -181,7 +181,7 @@ where
                     let n = match read_frame_len(&mut this.io, cx, &mut buf, &mut off) {
                         Poll::Ready(Ok(Some(n))) => n,
                         Poll::Ready(Ok(None)) => {
-                            trace!("read: eof");
+                            debug!("read: eof");
                             this.read_state = ReadState::Eof(Ok(()));
                             return Poll::Ready(None);
                         }
@@ -191,9 +191,9 @@ where
                             return Poll::Pending;
                         }
                     };
-                    trace!("read: frame len = {}", n);
+                    debug!("read: frame len = {}", n);
                     if n == 0 {
-                        trace!("read: empty frame");
+                        debug!("read: empty frame");
                         this.read_state = ReadState::Ready;
                         continue;
                     }
@@ -212,22 +212,22 @@ where
                             Err(e) => return Poll::Ready(Some(Err(e))),
                         }
                     };
-                    trace!("read: {}/{} bytes", *off + n, len);
+                    debug!("read: {}/{} bytes", *off + n, len);
                     if n == 0 {
-                        trace!("read: eof");
+                        debug!("read: eof");
                         this.read_state = ReadState::Eof(Err(()));
                         return Poll::Ready(Some(Err(io::ErrorKind::UnexpectedEof.into())));
                     }
                     *off += n;
                     if len == *off {
-                        trace!("read: decrypting {} bytes", len);
+                        debug!("read: decrypting {} bytes", len);
                         this.decrypt_buffer.resize(len, 0);
                         if let Ok(n) = this
                             .session
                             .read_message(&this.read_buffer, &mut this.decrypt_buffer)
                         {
                             this.decrypt_buffer.truncate(n);
-                            trace!("read: payload len = {} bytes", n);
+                            debug!("read: payload len = {} bytes", n);
                             this.read_state = ReadState::Ready;
                             // Return an immutable view into the current buffer.
                             // If the view is dropped before the next frame is
@@ -243,11 +243,11 @@ where
                     }
                 }
                 ReadState::Eof(Ok(())) => {
-                    trace!("read: eof");
+                    debug!("read: eof");
                     return Poll::Ready(None);
                 }
                 ReadState::Eof(Err(())) => {
-                    trace!("read: eof (unexpected)");
+                    debug!("read: eof (unexpected)");
                     return Poll::Ready(Some(Err(io::ErrorKind::UnexpectedEof.into())));
                 }
                 ReadState::DecErr => {
@@ -268,17 +268,17 @@ where
     fn poll_ready(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
         let mut this = Pin::into_inner(self);
         loop {
-            trace!("write state {:?}", this.write_state);
+            debug!("write state {:?}", this.write_state);
             match this.write_state {
                 WriteState::Ready => {
                     return Poll::Ready(Ok(()));
                 }
                 WriteState::WriteLen { len, buf, mut off } => {
-                    trace!("write: frame len ({}, {:?}, {}/2)", len, buf, off);
+                    debug!("write: frame len ({}, {:?}, {}/2)", len, buf, off);
                     match write_frame_len(&mut this.io, cx, &buf, &mut off) {
                         Poll::Ready(Ok(true)) => (),
                         Poll::Ready(Ok(false)) => {
-                            trace!("write: eof");
+                            debug!("write: eof");
                             this.write_state = WriteState::Eof;
                             return Poll::Ready(Err(io::ErrorKind::WriteZero.into()));
                         }
@@ -300,19 +300,19 @@ where
                         }
                     };
                     if n == 0 {
-                        trace!("write: eof");
+                        debug!("write: eof");
                         this.write_state = WriteState::Eof;
                         return Poll::Ready(Err(io::ErrorKind::WriteZero.into()));
                     }
                     *off += n;
-                    trace!("write: {}/{} bytes written", *off, len);
+                    debug!("write: {}/{} bytes written", *off, len);
                     if len == *off {
-                        trace!("write: finished with {} bytes", len);
+                        debug!("write: finished with {} bytes", len);
                         this.write_state = WriteState::Ready;
                     }
                 }
                 WriteState::Eof => {
-                    trace!("write: eof");
+                    debug!("write: eof");
                     return Poll::Ready(Err(io::ErrorKind::WriteZero.into()));
                 }
                 WriteState::EncErr => return Poll::Ready(Err(io::ErrorKind::InvalidData.into())),
@@ -332,7 +332,7 @@ where
             .write_message(frame, &mut this.write_buffer[..])
         {
             Ok(n) => {
-                trace!("write: cipher text len = {} bytes", n);
+                debug!("write: cipher text len = {} bytes", n);
                 this.write_buffer.truncate(n);
                 this.write_state = WriteState::WriteLen {
                     len: n,

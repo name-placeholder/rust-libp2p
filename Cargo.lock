@@ -2954,6 +2954,7 @@ dependencies = [
  "futures",
  "js-sys",
  "libp2p-core",
+ "log",
  "parity-send-wrapper",
  "wasm-bindgen",
  "wasm-bindgen-futures",

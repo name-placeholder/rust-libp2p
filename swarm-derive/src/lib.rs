@@ -95,6 +95,13 @@ fn build_struct(ast: &DeriveInput, data_struct: &DataStruct) -> TokenStream {
         quote! {<#(#lf,)* #(#tp,)* #(#cst,)*>}
     };
 
+    let fields = data_struct
+        .fields
+        .iter()
+        .filter(|f| field_is_not_ignored(*f))
+        .cloned()
+        .collect::<Vec<_>>();
+
     let (out_event_name, out_event_definition, out_event_from_clauses) = {
         // If we find a `#[behaviour(out_event = "Foo")]` attribute on the
         // struct, we set `Foo` as the out event. If not, the `OutEvent` is
@@ -103,8 +110,7 @@ fn build_struct(ast: &DeriveInput, data_struct: &DataStruct) -> TokenStream {
             // User provided `OutEvent`.
             Some(name) => {
                 let definition = None;
-                let from_clauses = data_struct
-                    .fields
+                let from_clauses = fields
                     .iter()
                     .map(|field| {
                         let ty = &field.ty;
@@ -197,8 +203,7 @@ fn build_struct(ast: &DeriveInput, data_struct: &DataStruct) -> TokenStream {
 
     // Build the `where ...` clause of the trait implementation.
     let where_clause = {
-        let additional = data_struct
-            .fields
+        let additional = fields
             .iter()
             .map(|field| {
                 let ty = &field.ty;
@@ -556,7 +561,7 @@ fn build_struct(ast: &DeriveInput, data_struct: &DataStruct) -> TokenStream {
     // The [`ConnectionHandler`] associated type.
     let connection_handler_ty = {
         let mut ph_ty = None;
-        for field in data_struct.fields.iter() {
+        for field in fields.iter() {
             let ty = &field.ty;
             let field_info = quote! { #t_handler<#ty> };
             match ph_ty {
@@ -589,7 +594,7 @@ fn build_struct(ast: &DeriveInput, data_struct: &DataStruct) -> TokenStream {
     let handle_established_inbound_connection = {
         let mut out_handler = None;
 
-        for (field_n, field) in data_struct.fields.iter().enumerate() {
+        for (field_n, field) in fields.iter().enumerate() {
             let field_name = match field.ident {
                 Some(ref i) => quote! { self.#i },
                 None => quote! { self.#field_n },
@@ -661,7 +666,7 @@ fn build_struct(ast: &DeriveInput, data_struct: &DataStruct) -> TokenStream {
     // List of statements to put in `poll()`.
     //
     // We poll each child one by one and wrap around the output.
-    let poll_stmts = data_struct.fields.iter().enumerate().map(|(field_n, field)| {
+    let poll_stmts = fields.iter().enumerate().map(|(field_n, field)| {
         let field = field
             .ident
             .clone()
@@ -927,4 +932,17 @@ fn parse_attributes(ast: &DeriveInput) -> Result<BehaviourAttributes, TokenStrea
     }
 
     Ok(attributes)
+}
+
+fn field_is_not_ignored(field: &syn::Field) -> bool {
+    field
+        .attrs
+        .iter()
+        .find_map(|attr| {
+            if attr.path().segments.first()?.ident == "ignore" {
+                return Some(());
+            }
+            None
+        })
+        .is_none()
 }

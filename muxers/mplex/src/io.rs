@@ -118,7 +118,7 @@ where
     /// Creates a new multiplexed I/O stream.
     pub fn new(io: C, config: MplexConfig) -> Self {
         let id = ConnectionId(rand::random());
-        debug!("New multiplexed connection: {}", id);
+        log::debug!("New multiplexed connection: {}", id);
         Multiplexed {
             id,
             config,
@@ -349,7 +349,7 @@ where
                         if self.check_max_pending_frames().is_err() {
                             return;
                         }
-                        trace!("{}: Pending close for stream {}", self.id, id);
+                        debug!("{}: Pending close for stream {}", self.id, id);
                         self.pending_frames
                             .push_front(Frame::Close { stream_id: id });
                     }
@@ -357,7 +357,7 @@ where
                         if self.check_max_pending_frames().is_err() {
                             return;
                         }
-                        trace!("{}: Pending reset for stream {}", self.id, id);
+                        debug!("{}: Pending reset for stream {}", self.id, id);
                         self.pending_frames
                             .push_front(Frame::Reset { stream_id: id });
                     }
@@ -477,7 +477,7 @@ where
                 frame @ Frame::Open { .. } => {
                     if let Some(id) = self.on_open(frame.remote_id())? {
                         self.open_buffer.push_front(id);
-                        trace!(
+                        debug!(
                             "{}: Buffered new inbound stream {} (total: {})",
                             self.id,
                             id,
@@ -517,7 +517,7 @@ where
         self.guard_open()?;
 
         ready!(self.poll_flush(cx))?;
-        trace!("{}: Flushed substream {}", self.id, id);
+        debug!("{}: Flushed substream {}", self.id, id);
 
         Poll::Ready(Ok(()))
     }
@@ -590,7 +590,7 @@ where
         match ready!(self.io.poll_ready_unpin(&mut Context::from_waker(&waker))) {
             Ok(()) => {
                 let frame = frame();
-                trace!("{}: Sending {:?}", self.id, frame);
+                debug!("{}: Sending {:?}", self.id, frame);
                 match self.io.start_send_unpin(frame) {
                     Ok(()) => Poll::Ready(Ok(())),
                     Err(e) => Poll::Ready(self.on_error(e)),
@@ -619,7 +619,7 @@ where
         // Perform any pending flush before reading.
         if let Some(id) = &stream_id {
             if self.pending_flush_open.contains(id) {
-                trace!("{}: Executing pending flush for {}.", self.id, id);
+                debug!("{}: Executing pending flush for {}.", self.id, id);
                 ready!(self.poll_flush(cx))?;
                 self.pending_flush_open = Default::default();
             }
@@ -635,7 +635,7 @@ where
             if !self.notifier_read.wake_read_stream(*blocked_id) {
                 // No task dedicated to the blocked stream woken, so schedule
                 // this task again to have a chance at progress.
-                trace!(
+                debug!(
                     "{}: No task to read from blocked stream. Waking current task.",
                     self.id
                 );
@@ -665,7 +665,7 @@ where
         };
         match ready!(self.io.poll_next_unpin(&mut Context::from_waker(&waker))) {
             Some(Ok(frame)) => {
-                trace!("{}: Received {:?}", self.id, frame);
+                debug!("{}: Received {:?}", self.id, frame);
                 Poll::Ready(Ok(frame))
             }
             Some(Err(e)) => Poll::Ready(self.on_error(e)),
@@ -722,17 +722,15 @@ where
         if let Some(state) = self.substreams.remove(&id) {
             match state {
                 SubstreamState::Closed { .. } => {
-                    trace!(
+                    debug!(
                         "{}: Ignoring reset for mutually closed substream {}.",
-                        self.id,
-                        id
+                        self.id, id
                     );
                 }
                 SubstreamState::Reset { .. } => {
-                    trace!(
+                    debug!(
                         "{}: Ignoring redundant reset for already reset substream {}",
-                        self.id,
-                        id
+                        self.id, id
                     );
                 }
                 SubstreamState::RecvClosed { buf }
@@ -746,10 +744,9 @@ where
                 }
             }
         } else {
-            trace!(
+            debug!(
                 "{}: Ignoring `Reset` for unknown substream {}. Possibly dropped earlier.",
-                self.id,
-                id
+                self.id, id
             );
         }
     }
@@ -793,10 +790,9 @@ where
                 }
             }
         } else {
-            trace!(
+            debug!(
                 "{}: Ignoring `Close` for unknown substream {}. Possibly dropped earlier.",
-                self.id,
-                id
+                self.id, id
             );
         }
     }
@@ -873,11 +869,9 @@ where
         let state = if let Some(state) = self.substreams.get_mut(&id) {
             state
         } else {
-            trace!(
+            debug!(
                 "{}: Dropping data {:?} for unknown substream {}",
-                self.id,
-                data,
-                id
+                self.id, data, id
             );
             return Ok(());
         };
@@ -885,17 +879,15 @@ where
         let buf = if let Some(buf) = state.recv_buf_open() {
             buf
         } else {
-            trace!(
+            debug!(
                 "{}: Dropping data {:?} for closed or reset substream {}",
-                self.id,
-                data,
-                id
+                self.id, data, id
             );
             return Ok(());
         };
 
         debug_assert!(buf.len() <= self.config.max_buffer_len);
-        trace!(
+        debug!(
             "{}: Buffering {:?} for stream {} (total: {})",
             self.id,
             data,

@@ -18,6 +18,7 @@ parity-send-wrapper = "0.1.0"
 wasm-bindgen = "0.2.42"
 wasm-bindgen-futures = "0.4.34"
 x509-parser = "0.14.0"
+log = "0.4.8"
 
 [features]
 websocket = []
