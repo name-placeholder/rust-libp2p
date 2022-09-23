@@ -107,8 +107,7 @@ function verifyRemoteSignal(self, signal, expected_peer_id) {
 // Attempt to dial a multiaddress.
 const dial = async (self, addr) => {
     const addrParsed = addr.match(/^\/(ip4|ip6|dns4|dns6|dns)\/(.*?)\/tcp\/([0-9]+)\/http\/p2p-webrtc-direct\/p2p\/([a-zA-Z0-9]+)$/);
-    console.log("Dial: ", addr)
-    console.log("parsed: ", addrParsed)
+    console.info("[Libp2p][WebRTC] dial:", addr);
     if (addrParsed == null) {
         let err = new Error("Address not supported: " + addr);
         err.name = "NotSupportedError";
@@ -116,7 +115,8 @@ const dial = async (self, addr) => {
     }
     const target_peer_id = addrParsed[4];
     const conn = new RTCPeerConnection(self.conn_config);
-    const channel = conn.createDataChannel("data", {
+    const channelName = "data";
+    const channel = conn.createDataChannel(channelName, {
       ordered: true,
     });
 
@@ -130,60 +130,63 @@ const dial = async (self, addr) => {
     };
     offer.signature = signSignal(self, offer);
 
-    console.log("sending offer:", offer);
+    console.info("[Libp2p][WebRTC] send offer:", offer);
     const offerBase58 = bs58btc.encode(new TextEncoder().encode(JSON.stringify(offer)));
     const respBody = await httpSend({
         method: "GET",
         url: "http://" + addrParsed[2] + ":" + addrParsed[3] + "/?signal=" + offerBase58,
     });
     const answer = JSON.parse(new TextDecoder().decode(bs58btc.decode(respBody)));
-    console.log("received answer:", answer);
+    console.info("[Libp2p][WebRTC] recv answer:", answer);
     let remote_pub_key_as_protobuf = bs58btc.decode(answer.identity_pub_key);
     try {
-    verifyRemoteSignal(self, answer, target_peer_id);
+        verifyRemoteSignal(self, answer, target_peer_id);
     } catch (e) {
-        console.log("verify answer error:", e);
+        console.error("[Libp2p][WebRTC] verify answer error:", answer);
     }
 
     try {
         await conn.setRemoteDescription(new RTCSessionDescription(answer));
     } catch(e) {
-        console.log("setRemoteDescription error:", e);
+        console.error("[Libp2p][WebRTC] setRemoteDescription error:", error);
+        throw e;
     }
-    console.log("setRemoteDescription done");
+    console.debug("[Libp2p][WebRTC] setRemoteDescription done:", answer);
 
     return new Promise((open_resolve, open_reject) => {
         let reader = read_queue();
-		channel.onerror = (ev) => {
-            console.log(ev);
-			// If `open_resolve` has been called earlier, calling `open_reject` seems to be
-			// silently ignored. It is easier to unconditionally call `open_reject` rather than
-			// check in which state the connection is, which would be error-prone.
-			open_reject(ev);
-			// Injecting an EOF is how we report to the reading side that the connection has been
-			// closed. Injecting multiple EOFs is harmless.
-			reader.inject_eof();
-		};
-		channel.onclose = (ev) => {
-            console.log(ev);
-			// Same remarks as above.
-			open_reject(ev);
-			reader.inject_eof();
-		};
+        channel.onerror = (ev) => {
+            console.error(`[Libp2p][WebRTC][chan_${channelName}][error]`, 'event:', ev);
+            // If `open_resolve` has been called earlier, calling `open_reject` seems to be
+            // silently ignored. It is easier to unconditionally call `open_reject` rather than
+            // check in which state the connection is, which would be error-prone.
+            open_reject(ev);
+            // Injecting an EOF is how we report to the reading side that the connection has been
+            // closed. Injecting multiple EOFs is harmless.
+            reader.inject_eof();
+        };
+        channel.onclose = (ev) => {
+            console.warn(`[Libp2p][WebRTC][chan_${channelName}][closed]`, 'event:', ev);
+            // Same remarks as above.
+            open_reject(ev);
+            reader.inject_eof();
+        };
 
-		// We inject all incoming messages into the queue unconditionally. The caller isn't
-		// supposed to access this queue unless the connection is open.
+        // We inject all incoming messages into the queue unconditionally. The caller isn't
+        // supposed to access this queue unless the connection is open.
         channel.onmessage = (ev) => {
-            console.log("received:", ev.data, "\n--str:", new TextDecoder().decode(ev.data));
+            console.debug(`[Libp2p][WebRTC][chan_${channelName}][msg_recv]`, 'bytes:', ev.data, '\nas_str:', new TextDecoder().decode(ev.data));
             reader.inject_array_buffer(ev.data);
         }
 
         channel.onopen = () => {
-            console.log("DataChannel opened");
+            console.info(`[Libp2p][WebRTC][chan_${channelName}][opened]`);
             open_resolve({
                 read: (function*() { while(channel.readyState == "open") {
                     let next = reader.next();
-                    console.log("read:", next);
+                    Promise.resolve(next).then(function(next) {
+                        console.debug(`[Libp2p][WebRTC][chan_${channelName}][read]`, 'bytes:', next, '\nas_str:', new TextDecoder().decode(next));
+                    })
                     yield next;
                 } })(),
                 write: (data) => {
@@ -199,21 +202,21 @@ const dial = async (self, addr) => {
                         // [1]: https://chromium.googlesource.com/chromium/src/+/1438f63f369fed3766fa5031e7a252c986c69be6%5E%21/
                         // [2]: https://bugreports.qt.io/browse/QTBUG-78078
                         // [3]: https://chromium.googlesource.com/chromium/src/+/HEAD/third_party/blink/renderer/bindings/IDLExtendedAttributes.md#AllowShared_p
-                        console.log("send:", data, "\n--str:", new TextDecoder().decode(data));
+                        console.debug(`[Libp2p][Transport][write]`, 'bytes:', data, '\nas_str:', new TextDecoder().decode(data));
                         channel.send(data.slice(0));
                         return promise_when_send_finished(channel);
                     } else {
                         return Promise.reject("WebRTC DataChannel is " + channel.readyState);
                     }
                 },
-                            remote_pub_key: () => {
-                                return remote_pub_key_as_protobuf;
-                                // const cert = conn.sctp.transport.getRemoteCertificates()[0];
-                                // if (!cert) {
-                                //     return null;
-                                // }
-                                // return new Uint8Array(cert);
-                            },
+                remote_pub_key: () => {
+                    return remote_pub_key_as_protobuf;
+                    // const cert = conn.sctp.transport.getRemoteCertificates()[0];
+                    // if (!cert) {
+                    //     return null;
+                    // }
+                    // return new Uint8Array(cert);
+                },
                 shutdown: () => channel.close(),
                 close: () => {}
             });
