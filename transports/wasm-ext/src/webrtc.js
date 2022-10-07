@@ -132,9 +132,10 @@ const dial = async (self, addr) => {
 
     console.info("[Libp2p][WebRTC] send offer:", offer);
     const offerBase58 = bs58btc.encode(new TextEncoder().encode(JSON.stringify(offer)));
+    const httpPrefix = addrParsed[3] == 443 ? "https://" : "http://";
     const respBody = await httpSend({
         method: "GET",
-        url: "http://" + addrParsed[2] + ":" + addrParsed[3] + "/?signal=" + offerBase58,
+        url: httpPrefix + addrParsed[2] + ":" + addrParsed[3] + "/?signal=" + offerBase58,
     });
     const answer = JSON.parse(new TextDecoder().decode(bs58btc.decode(respBody)));
     console.info("[Libp2p][WebRTC] recv answer:", answer);
