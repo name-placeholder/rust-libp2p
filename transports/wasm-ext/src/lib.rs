@@ -62,6 +62,9 @@ pub mod ffi {
         /// Type of the object that represents an event containing a new connection with a remote.
         pub type ConnectionEvent;
 
+        #[wasm_bindgen(method)]
+        pub fn manual_connector(this: &Transport) -> JsValue;
+
         /// Start attempting to dial the given multiaddress.
         ///
         /// The returned `Promise` must yield a [`Connection`] on success.
