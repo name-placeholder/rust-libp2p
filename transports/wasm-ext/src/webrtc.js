@@ -18,6 +18,7 @@
 // FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 // DEALINGS IN THE SOFTWARE.
 
+const CHANNEL_NAME = "data";
 
 function httpSend(opts) {
     return new Promise(function (resolve, reject) {
@@ -61,6 +62,24 @@ function httpSend(opts) {
 }
 
 export const webrtc_transport = async (crypto) => {
+    // Connections that we get using other method than just dialing
+    // peers and signaling using http server. Such method could be
+    // manual signaling, when user exchanges sdp messages manually.
+    const listenerEvents = async_queue();
+    let listen_addr;
+
+    const push_new_connection = (conn, stream) => {
+        const remote_candidate = conn.sctp.transport.iceTransport.getSelectedCandidatePair().remote;
+        // const remote_addr = `/dns4/${remote_candidate.address}/udp/${remote_candidate.port}`;
+        const event = { new_connections: [{
+            connection: stream,
+            observed_addr: "",
+            // observed_addr: remote_addr,
+            local_addr: listen_addr,
+        }] };
+        listenerEvents.push(event);
+    };
+
     const cert = await RTCPeerConnection.generateCertificate({
         name: "ECDSA",
         namedCurve: "P-256",
@@ -71,37 +90,161 @@ export const webrtc_transport = async (crypto) => {
             certificates: [cert],
             iceServers: [],
         },
+
+        signSignal(signal) {
+            let signalConcat = signalAsSignInput(signal);
+            return bs58btc.encode(this.crypto.sign(signalConcat));
+        },
+        createConn() {
+            return new RTCPeerConnection(this.conn_config);
+        },
+        createConnWithChannel() {
+            const conn = this.createConn();
+            const channel = conn.createDataChannel(CHANNEL_NAME, {
+              ordered: true,
+            });
+            return [conn, channel];
+        },
+        waitForIceGatheringComplete(conn) {
+            if (conn.iceGatheringState == 'complete') {
+                return Promise.resolve();
+            }
+            return new Promise((resolve) => conn.onicegatheringstatechange = () => {
+                if (conn.iceGatheringState == 'complete') {
+                    resolve();
+                }
+            });
+        },
+        async createAndSetOffer(conn, target_peer_id) {
+            let offer = await conn.createOffer();
+            await conn.setLocalDescription(offer);
+            await this.waitForIceGatheringComplete(conn);
+            offer = conn.localDescription;
+            offer = {
+                type: offer.type,
+                sdp: offer.sdp,
+                identity_pub_key: bs58btc.encode(this.crypto.pub_key_as_protobuf()),
+                target_peer_id,
+            };
+            offer.signature = this.signSignal(offer);
+            return offer;
+        },
+        async createAndSetAnswer(conn, target_peer_id) {
+            let answer = await conn.createAnswer();
+            await conn.setLocalDescription(answer);
+            await this.waitForIceGatheringComplete(conn);
+            answer = conn.localDescription;
+            answer = {
+                type: answer.type,
+                sdp: answer.sdp,
+                identity_pub_key: bs58btc.encode(this.crypto.pub_key_as_protobuf()),
+                target_peer_id,
+            };
+            answer.signature = this.signSignal(answer);
+            return answer;
+        },
+        /// Throws error if invalid.
+        verifyRemoteSignal(signal, expected_peer_id) {
+            if (signal.target_peer_id != this.crypto.peer_id_as_b58()) {
+                throw "Identity handshake failed! Reason: `target_peer_id` in the WebRTC answer, doesn't match with the expected local peer id.";
+            }
+            let pub_key_as_protobuf = bs58btc.decode(signal.identity_pub_key);
+            let data = signalAsSignInput(signal);
+            let signature = bs58btc.decode(signal.signature);
+            this.crypto.assert_signature(pub_key_as_protobuf, data, signature);
+            let peer_id = this.crypto.pub_key_as_protobuf_to_peer_id_as_b58(pub_key_as_protobuf);
+            if (peer_id != expected_peer_id) {
+                throw "Identity handshake failed! Peer's ID doesn't match the expected one."
+            }
+        },
+
+        manual_connector() {
+            return {
+                dial: async (target_peer_id) => {
+                    const [conn, channel] = this.createConnWithChannel();
+                    const offer = await this.createAndSetOffer(conn, target_peer_id);
+                    console.info(`[Libp2p][WebRTC][Manual][peer_${target_peer_id}] send offer`, offer);
+
+                    return {
+                        offer: () => offer,
+                        finish: async (answer) => {
+                            console.info(`[Libp2p][WebRTC][Manual][peer_${target_peer_id}] recv answer`, offer);
+                            const remote_pub_key_as_protobuf = bs58btc.decode(answer.identity_pub_key);
+                            try {
+                                this.verifyRemoteSignal(answer, target_peer_id);
+                            } catch (e) {
+                                console.error(`[Libp2p][WebRTC][Manual][peer_${target_peer_id}] verify answer error: `, e, answer);
+                                throw e;
+                            }
+
+                            try {
+                                await conn.setRemoteDescription(new RTCSessionDescription(answer));
+                            } catch(e) {
+                                console.error(`[Libp2p][WebRTC][Manual][peer_${target_peer_id}] setRemoteDescription error: `, e, answer);
+                                throw e;
+                            }
+                            console.debug("[Libp2p][WebRTC][Manual] setRemoteDescription done:", answer);
+
+                            const stream = await wait_channel_open_and_attach_handlers(channel, target_peer_id, remote_pub_key_as_protobuf);
+                            push_new_connection(conn, stream);
+                        },
+                    };
+                },
+                listen: () => {
+                    let conn, channelPromise, target_peer_id, remote_pub_key_as_protobuf;
+                    return {
+                        peer_id: () => this.crypto.peer_id_as_b58(),
+                        set_offer_and_generate_answer: async (offer) => {
+                            console.info("[Libp2p][WebRTC][Manual] recv offer:", offer);
+                            remote_pub_key_as_protobuf = bs58btc.decode(offer.identity_pub_key);
+                            target_peer_id = this.crypto.pub_key_as_protobuf_to_peer_id_as_b58(remote_pub_key_as_protobuf);
+                            try {
+                                this.verifyRemoteSignal(offer, target_peer_id);
+                            } catch (e) {
+                                console.error("[Libp2p][WebRTC][Manual] verify offer error:", e);
+                                throw e;
+                            }
+
+                            conn = this.createConn();
+                            channelPromise = new Promise((resolve) => {
+                                conn.ondatachannel = (e) => resolve(e.channel || e);
+                            });
+                            try {
+                                await conn.setRemoteDescription(new RTCSessionDescription(offer));
+                            } catch(e) {
+                                console.error("[Libp2p][WebRTC][Manual] setRemoteDescription error:", e);
+                                throw e;
+                            }
+                            return await this.createAndSetAnswer(conn, target_peer_id);
+                        },
+                        finish: async () => {
+                            const channel = await channelPromise;
+                            const stream = await wait_channel_open_and_attach_handlers(channel, target_peer_id, remote_pub_key_as_protobuf);
+                            push_new_connection(conn, stream);
+                        },
+                    };
+                },
+            };
+        },
         dial(addr) { return dial(this, addr); },
         listen_on(addr) {
-            let err = new Error("Listening on WebRTC is not possible from within a browser");
-            err.name = "NotSupportedError";
-            throw err;
+            listen_addr = addr;
+            console.log(this.manual_connector());
+            listenerEvents.push({ new_addrs: [addr] });
+            return (function* () {
+                while (true) {
+                    yield listenerEvents.next().then((ev) => {
+                        console.log("[Libp2p][WebRTC][ListenerEvent]: ", ev)
+                        return ev;
+                    });
+                }
+            })();
         },
     };
 }
 
 function signalAsSignInput(signal) {
     return new TextEncoder().encode(`${signal.type}${signal.sdp}${signal.identity_pub_key}${signal.target_peer_id}`);
-}
-
-function signSignal(self, signal) {
-    let signalConcat = signalAsSignInput(signal);
-    return bs58btc.encode(self.crypto.sign(signalConcat));
-}
-
-/// Throws error if invalid.
-function verifyRemoteSignal(self, signal, expected_peer_id) {
-    if (signal.target_peer_id != self.crypto.peer_id_as_b58()) {
-        throw "Identity handshake failed! Reason: `target_peer_id` in the WebRTC answer, doesn't match with the expected local peer id.";
-    }
-    let pub_key_as_protobuf = bs58btc.decode(signal.identity_pub_key);
-    let data = signalAsSignInput(signal);
-    let signature = bs58btc.decode(signal.signature);
-    self.crypto.assert_signature(pub_key_as_protobuf, data, signature);
-    let peer_id = self.crypto.pub_key_as_protobuf_to_peer_id_as_b58(pub_key_as_protobuf);
-    if (peer_id != expected_peer_id) {
-        throw "Identity handshake failed! Peer's ID doesn't match the expected one."
-    }
 }
 
 // Attempt to dial a multiaddress.
@@ -114,21 +257,9 @@ const dial = async (self, addr) => {
         throw err;
     }
     const target_peer_id = addrParsed[4];
-    const conn = new RTCPeerConnection(self.conn_config);
-    const channelName = "data";
-    const channel = conn.createDataChannel(channelName, {
-      ordered: true,
-    });
+    const [conn, channel] = self.createConnWithChannel();
 
-    let offer = await conn.createOffer();
-    await conn.setLocalDescription(offer);
-    offer = {
-        type: offer.type,
-        sdp: offer.sdp,
-        identity_pub_key: bs58btc.encode(self.crypto.pub_key_as_protobuf()),
-        target_peer_id,
-    };
-    offer.signature = signSignal(self, offer);
+    const offer = await self.createAndSetOffer(conn, target_peer_id);
 
     console.info("[Libp2p][WebRTC] send offer:", offer);
     const offerBase58 = bs58btc.encode(new TextEncoder().encode(JSON.stringify(offer)));
@@ -141,9 +272,10 @@ const dial = async (self, addr) => {
     console.info("[Libp2p][WebRTC] recv answer:", answer);
     let remote_pub_key_as_protobuf = bs58btc.decode(answer.identity_pub_key);
     try {
-        verifyRemoteSignal(self, answer, target_peer_id);
+        self.verifyRemoteSignal(answer, target_peer_id);
     } catch (e) {
-        console.error("[Libp2p][WebRTC] verify answer error:", answer);
+        console.error("[Libp2p][WebRTC] verify answer error:", e, answer);
+        throw e;
     }
 
     try {
@@ -154,39 +286,43 @@ const dial = async (self, addr) => {
     }
     console.debug("[Libp2p][WebRTC] setRemoteDescription done:", answer);
 
+    return wait_channel_open_and_attach_handlers(channel, target_peer_id, remote_pub_key_as_protobuf);
+}
+
+function wait_channel_open_and_attach_handlers(channel, remote_id, remote_pub_key_as_protobuf) {
     return new Promise((open_resolve, open_reject) => {
-        let reader = read_queue();
+        let reader = async_queue();
         channel.onerror = (ev) => {
-            console.error(`[Libp2p][WebRTC][chan_${channelName}][error]`, 'event:', ev);
+            console.error(`[Libp2p][WebRTC][peer_${remote_id}][chan_${CHANNEL_NAME}][error]`, 'event:', ev);
             // If `open_resolve` has been called earlier, calling `open_reject` seems to be
             // silently ignored. It is easier to unconditionally call `open_reject` rather than
             // check in which state the connection is, which would be error-prone.
             open_reject(ev);
             // Injecting an EOF is how we report to the reading side that the connection has been
             // closed. Injecting multiple EOFs is harmless.
-            reader.inject_eof();
+            reader.push_eof();
         };
         channel.onclose = (ev) => {
-            console.warn(`[Libp2p][WebRTC][chan_${channelName}][closed]`, 'event:', ev);
+            console.warn(`[Libp2p][WebRTC][peer_${remote_id}][chan_${CHANNEL_NAME}][closed]`, 'event:', ev);
             // Same remarks as above.
             open_reject(ev);
-            reader.inject_eof();
+            reader.push_eof();
         };
 
         // We inject all incoming messages into the queue unconditionally. The caller isn't
         // supposed to access this queue unless the connection is open.
         channel.onmessage = (ev) => {
-            console.debug(`[Libp2p][WebRTC][chan_${channelName}][msg_recv]`, 'bytes:', ev.data, '\nas_str:', new TextDecoder().decode(ev.data));
-            reader.inject_array_buffer(ev.data);
+            console.debug(`[Libp2p][WebRTC][peer_${remote_id}][chan_${CHANNEL_NAME}][msg_recv]`, 'bytes:', ev.data, '\nas_str:', new TextDecoder().decode(ev.data));
+            reader.push(ev.data);
         }
 
         channel.onopen = () => {
-            console.info(`[Libp2p][WebRTC][chan_${channelName}][opened]`);
+            console.info(`[Libp2p][WebRTC][peer_${remote_id}][chan_${CHANNEL_NAME}][opened]`);
             open_resolve({
                 read: (function*() { while(channel.readyState == "open") {
                     let next = reader.next();
                     Promise.resolve(next).then(function(next) {
-                        console.debug(`[Libp2p][WebRTC][chan_${channelName}][read]`, 'bytes:', next, '\nas_str:', new TextDecoder().decode(next));
+                        console.debug(`[Libp2p][WebRTC][peer_${remote_id}][chan_${CHANNEL_NAME}][read]`, 'bytes:', next, '\nas_str:', new TextDecoder().decode(next));
                     })
                     yield next;
                 } })(),
@@ -203,7 +339,7 @@ const dial = async (self, addr) => {
                         // [1]: https://chromium.googlesource.com/chromium/src/+/1438f63f369fed3766fa5031e7a252c986c69be6%5E%21/
                         // [2]: https://bugreports.qt.io/browse/QTBUG-78078
                         // [3]: https://chromium.googlesource.com/chromium/src/+/HEAD/third_party/blink/renderer/bindings/IDLExtendedAttributes.md#AllowShared_p
-                        console.debug(`[Libp2p][Transport][write]`, 'bytes:', data, '\nas_str:', new TextDecoder().decode(data));
+                        console.debug(`[Libp2p][WebRTC][peer_${remote_id}][chan_${CHANNEL_NAME}][write]`, 'bytes:', data, '\nas_str:', new TextDecoder().decode(data));
                         channel.send(data.slice(0));
                         return promise_when_send_finished(channel);
                     } else {
@@ -247,12 +383,10 @@ const promise_when_send_finished = (channel) => {
 	})
 }
 
-// Creates a queue reading system.
-const read_queue = () => {
+// Creates a async queue.
+const async_queue = () => {
 	// State of the queue.
 	let state = {
-		// Array of promises resolving to `ArrayBuffer`s, that haven't been transmitted back with
-		// `next` yet.
 		queue: new Array(),
 		// If `resolve` isn't null, it is a "resolve" function of a promise that has already been
 		// returned by `next`. It should be called with some data.
@@ -261,29 +395,29 @@ const read_queue = () => {
 
 	return {
 		// Inserts a new Blob in the queue.
-		inject_array_buffer: (buffer) => {
+		push: (buffer) => {
 			if (state.resolve != null) {
 				state.resolve(buffer);
 				state.resolve = null;
 			} else {
-				state.queue.push(Promise.resolve(buffer));
+				state.queue.push(buffer);
 			}
 		},
 
 		// Inserts an EOF message in the queue.
-		inject_eof: () => {
+		push_eof: () => {
 			if (state.resolve != null) {
 				state.resolve(null);
 				state.resolve = null;
 			} else {
-				state.queue.push(Promise.resolve(null));
+				state.queue.push(null);
 			}
 		},
 
 		// Returns a Promise that yields the next entry as an ArrayBuffer.
 		next: () => {
 			if (state.queue.length != 0) {
-				return state.queue.shift(0);
+				return Promise.resolve(state.queue.shift(0));
 			} else {
 				if (state.resolve !== null)
 					throw "Internal error: already have a pending promise";
