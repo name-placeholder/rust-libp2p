@@ -68,12 +68,12 @@ export const webrtc_transport = async (crypto) => {
     const listenerEvents = async_queue();
     let listen_addr;
 
-    const push_new_connection = (conn, stream) => {
+    const push_new_connection = (conn, stream, maAddr) => {
         const remote_candidate = conn.sctp.transport.iceTransport.getSelectedCandidatePair().remote;
         // const remote_addr = `/dns4/${remote_candidate.address}/udp/${remote_candidate.port}`;
         const event = { new_connections: [{
             connection: stream,
-            observed_addr: "",
+            observed_addr: maAddr || "",
             // observed_addr: remote_addr,
             local_addr: listen_addr,
         }] };
@@ -186,12 +186,13 @@ export const webrtc_transport = async (crypto) => {
                             console.debug("[Libp2p][WebRTC][Manual] setRemoteDescription done:", answer);
 
                             const stream = await wait_channel_open_and_attach_handlers(channel, target_peer_id, remote_pub_key_as_protobuf);
-                            push_new_connection(conn, stream);
+                            const ma_addr = `/p2p-webrtc-direct/p2p/${target_peer_id}`;
+                            push_new_connection(conn, stream, ma_addr);
                         },
                     };
                 },
                 listen: () => {
-                    let conn, channelPromise, target_peer_id, remote_pub_key_as_protobuf;
+                    let conn, finishedPromise, target_peer_id, remote_pub_key_as_protobuf;
                     return {
                         peer_id: () => this.crypto.peer_id_as_b58(),
                         set_offer_and_generate_answer: async (offer) => {
@@ -206,8 +207,12 @@ export const webrtc_transport = async (crypto) => {
                             }
 
                             conn = this.createConn();
-                            channelPromise = new Promise((resolve) => {
+                            const channelPromise = new Promise((resolve) => {
                                 conn.ondatachannel = (e) => resolve(e.channel || e);
+                            });
+                            finishedPromise = channelPromise.then(async (channel) => {
+                                const stream = await wait_channel_open_and_attach_handlers(channel, target_peer_id, remote_pub_key_as_protobuf);
+                                push_new_connection(conn, stream);
                             });
                             try {
                                 await conn.setRemoteDescription(new RTCSessionDescription(offer));
@@ -217,11 +222,7 @@ export const webrtc_transport = async (crypto) => {
                             }
                             return await this.createAndSetAnswer(conn, target_peer_id);
                         },
-                        finish: async () => {
-                            const channel = await channelPromise;
-                            const stream = await wait_channel_open_and_attach_handlers(channel, target_peer_id, remote_pub_key_as_protobuf);
-                            push_new_connection(conn, stream);
-                        },
+                        finish: async () => finishedPromise,
                     };
                 },
             };
@@ -229,7 +230,6 @@ export const webrtc_transport = async (crypto) => {
         dial(addr) { return dial(this, addr); },
         listen_on(addr) {
             listen_addr = addr;
-            console.log(this.manual_connector());
             listenerEvents.push({ new_addrs: [addr] });
             return (function* () {
                 while (true) {
