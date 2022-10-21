@@ -289,6 +289,14 @@ const dial = async (self, addr) => {
     return wait_channel_open_and_attach_handlers(channel, target_peer_id, remote_pub_key_as_protobuf);
 }
 
+function try_bytes_as_str(bytes) {
+    try {
+        return new TextDecoder().decode(bytes);
+    } catch {
+        return "<bytes_as_str failed>";
+    }
+}
+
 function wait_channel_open_and_attach_handlers(channel, remote_id, remote_pub_key_as_protobuf) {
     return new Promise((open_resolve, open_reject) => {
         let reader = async_queue();
@@ -312,7 +320,7 @@ function wait_channel_open_and_attach_handlers(channel, remote_id, remote_pub_ke
         // We inject all incoming messages into the queue unconditionally. The caller isn't
         // supposed to access this queue unless the connection is open.
         channel.onmessage = (ev) => {
-            console.debug(`[Libp2p][WebRTC][peer_${remote_id}][chan_${CHANNEL_NAME}][msg_recv]`, 'bytes:', ev.data, '\nas_str:', new TextDecoder().decode(ev.data));
+            console.debug(`[Libp2p][WebRTC][peer_${remote_id}][chan_${CHANNEL_NAME}][msg_recv]`, 'bytes:', ev.data, '\nas_str:', try_bytes_as_str(ev.data));
             reader.push(ev.data);
         }
 
@@ -322,7 +330,7 @@ function wait_channel_open_and_attach_handlers(channel, remote_id, remote_pub_ke
                 read: (function*() { while(channel.readyState == "open") {
                     let next = reader.next();
                     Promise.resolve(next).then(function(next) {
-                        console.debug(`[Libp2p][WebRTC][peer_${remote_id}][chan_${CHANNEL_NAME}][read]`, 'bytes:', next, '\nas_str:', new TextDecoder().decode(next));
+                        console.debug(`[Libp2p][WebRTC][peer_${remote_id}][chan_${CHANNEL_NAME}][read]`, 'bytes:', next, '\nas_str:', try_bytes_as_str(next));
                     })
                     yield next;
                 } })(),
@@ -339,7 +347,7 @@ function wait_channel_open_and_attach_handlers(channel, remote_id, remote_pub_ke
                         // [1]: https://chromium.googlesource.com/chromium/src/+/1438f63f369fed3766fa5031e7a252c986c69be6%5E%21/
                         // [2]: https://bugreports.qt.io/browse/QTBUG-78078
                         // [3]: https://chromium.googlesource.com/chromium/src/+/HEAD/third_party/blink/renderer/bindings/IDLExtendedAttributes.md#AllowShared_p
-                        console.debug(`[Libp2p][WebRTC][peer_${remote_id}][chan_${CHANNEL_NAME}][write]`, 'bytes:', data, '\nas_str:', new TextDecoder().decode(data));
+                        console.debug(`[Libp2p][WebRTC][peer_${remote_id}][chan_${CHANNEL_NAME}][write]`, 'bytes:', data, '\nas_str:', try_bytes_as_str(data));
                         channel.send(data.slice(0));
                         return promise_when_send_finished(channel);
                     } else {
