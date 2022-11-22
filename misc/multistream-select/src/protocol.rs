@@ -79,9 +79,9 @@ impl TryFrom<Bytes> for Protocol {
     type Error = ProtocolError;
 
     fn try_from(value: Bytes) -> Result<Self, Self::Error> {
-        if !value.as_ref().starts_with(b"/") {
-            return Err(ProtocolError::InvalidProtocol);
-        }
+        //if !value.as_ref().starts_with(b"/") {
+        //    return Err(ProtocolError::InvalidProtocol);
+        //}
         let protocol_as_string =
             String::from_utf8(value.to_vec()).map_err(|_| ProtocolError::InvalidProtocol)?;
 
@@ -193,10 +193,8 @@ impl Message {
 
         // If it starts with a `/`, ends with a line feed without any
         // other line feeds in-between, it must be a protocol name.
-        if msg.first() == Some(&b'/')
-            && msg.last() == Some(&b'\n')
-            && !msg[..msg.len() - 1].contains(&b'\n')
-        {
+        // if msg.first() == Some(&b'/') &&
+        if msg.last() == Some(&b'\n') && !msg[..msg.len() - 1].contains(&b'\n') {
             let p = Protocol::try_from(msg.split_to(msg.len() - 1))?;
             return Ok(Message::Protocol(p));
         }
