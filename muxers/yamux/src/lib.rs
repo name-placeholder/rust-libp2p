@@ -202,6 +202,7 @@ where
 /// The yamux configuration.
 #[derive(Debug, Clone)]
 pub struct YamuxConfig {
+    name: &'static [u8],
     inner: yamux::Config,
     mode: Option<yamux::Mode>,
 }
@@ -251,6 +252,8 @@ impl WindowUpdateMode {
 pub struct YamuxLocalConfig(YamuxConfig);
 
 impl YamuxConfig {
+    const DEFAULT_NAME: &'static [u8] = b"/yamux/1.0.0";
+
     /// Creates a new `YamuxConfig` in client mode, regardless of whether
     /// it will be used for an inbound or outbound upgrade.
     pub fn client() -> Self {
@@ -267,6 +270,11 @@ impl YamuxConfig {
             mode: Some(yamux::Mode::Server),
             ..Default::default()
         }
+    }
+
+    pub fn set_protocol_name(&mut self, name: &'static [u8]) -> &mut Self {
+        self.name = name;
+        self
     }
 
     /// Sets the size (in bytes) of the receive window per substream.
@@ -307,7 +315,11 @@ impl Default for YamuxConfig {
         // For conformity with mplex, read-after-close on a multiplexed
         // connection is never permitted and not configurable.
         inner.set_read_after_close(false);
-        YamuxConfig { inner, mode: None }
+        YamuxConfig {
+            name: Self::DEFAULT_NAME,
+            inner,
+            mode: None,
+        }
     }
 }
 
@@ -316,7 +328,7 @@ impl UpgradeInfo for YamuxConfig {
     type InfoIter = iter::Once<Self::Info>;
 
     fn protocol_info(&self) -> Self::InfoIter {
-        iter::once(b"/yamux/1.0.0")
+        iter::once(self.name)
     }
 }
 
@@ -325,7 +337,7 @@ impl UpgradeInfo for YamuxLocalConfig {
     type InfoIter = iter::Once<Self::Info>;
 
     fn protocol_info(&self) -> Self::InfoIter {
-        iter::once(b"/yamux/1.0.0")
+        iter::once(self.0.name)
     }
 }
 
