@@ -353,6 +353,14 @@ function wait_channel_open_and_attach_handlers(conn, channel, remote_id, remote_
             open_reject(ev);
             reader.push_eof();
         };
+        conn.onconnectionstatechange = () => {
+            if (conn.connectionState == "disconnected") {
+                closeConn(conn, channel);
+                // Same remarks as above.
+                open_reject();
+                reader.push_eof();
+            }
+        };
 
         // We inject all incoming messages into the queue unconditionally. The caller isn't
         // supposed to access this queue unless the connection is open.
