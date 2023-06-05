@@ -125,7 +125,7 @@ fn build_struct(ast: &DeriveInput, data_struct: &DataStruct) -> TokenStream {
                 let enum_name: syn::Type =
                     syn::parse_str(&enum_name_str).expect("ident + `Event` is a valid type");
                 let definition = {
-                    let fields = data_struct.fields.iter().map(|field| {
+                    let fields = fields.iter().map(|field| {
                         let variant: syn::Variant = syn::parse_str(
                             &field
                                 .ident
@@ -226,8 +226,7 @@ fn build_struct(ast: &DeriveInput, data_struct: &DataStruct) -> TokenStream {
     // Build the list of statements to put in the body of `on_swarm_event()`
     // for the `FromSwarm::ConnectionEstablished` variant.
     let on_connection_established_stmts = {
-        data_struct
-            .fields
+        fields
             .iter()
             .enumerate()
             .map(|(field_n, field)| match field.ident {
@@ -255,8 +254,7 @@ fn build_struct(ast: &DeriveInput, data_struct: &DataStruct) -> TokenStream {
     // Build the list of statements to put in the body of `on_swarm_event()`
     // for the `FromSwarm::AddressChange variant`.
     let on_address_change_stmts = {
-        data_struct
-            .fields
+        fields
             .iter()
             .enumerate()
             .map(|(field_n, field)| match field.ident {
@@ -282,8 +280,7 @@ fn build_struct(ast: &DeriveInput, data_struct: &DataStruct) -> TokenStream {
     // Build the list of statements to put in the body of `on_swarm_event()`
     // for the `FromSwarm::ConnectionClosed` variant.
     let on_connection_closed_stmts = {
-        data_struct
-            .fields
+        fields
             .iter()
             .enumerate()
             // The outmost handler belongs to the last behaviour.
@@ -328,57 +325,56 @@ fn build_struct(ast: &DeriveInput, data_struct: &DataStruct) -> TokenStream {
 
     // Build the list of statements to put in the body of `on_swarm_event()`
     // for the `FromSwarm::DialFailure` variant.
-    let on_dial_failure_stmts = data_struct
-        .fields
-        .iter()
-        .enumerate()
-        .map(|(enum_n, field)| match field.ident {
-            Some(ref i) => quote! {
-                self.#i.on_swarm_event(#from_swarm::DialFailure(#dial_failure {
-                    peer_id,
-                    connection_id,
-                    error,
-                }));
-            },
-            None => quote! {
-                self.#enum_n.on_swarm_event(#from_swarm::DialFailure(#dial_failure {
-                    peer_id,
-                    connection_id,
-                    error,
-                }));
-            },
-        });
+    let on_dial_failure_stmts =
+        fields
+            .iter()
+            .enumerate()
+            .map(|(enum_n, field)| match field.ident {
+                Some(ref i) => quote! {
+                    self.#i.on_swarm_event(#from_swarm::DialFailure(#dial_failure {
+                        peer_id,
+                        connection_id,
+                        error,
+                    }));
+                },
+                None => quote! {
+                    self.#enum_n.on_swarm_event(#from_swarm::DialFailure(#dial_failure {
+                        peer_id,
+                        connection_id,
+                        error,
+                    }));
+                },
+            });
 
     // Build the list of statements to put in the body of `on_swarm_event()`
     // for the `FromSwarm::ListenFailure` variant.
-    let on_listen_failure_stmts = data_struct
-        .fields
-        .iter()
-        .enumerate()
-        .map(|(enum_n, field)| match field.ident {
-            Some(ref i) => quote! {
-                self.#i.on_swarm_event(#from_swarm::ListenFailure(#listen_failure {
-                    local_addr,
-                    send_back_addr,
-                    connection_id,
-                    error
-                }));
-            },
-            None => quote! {
-                self.#enum_n.on_swarm_event(#from_swarm::ListenFailure(#listen_failure {
-                    local_addr,
-                    send_back_addr,
-                    connection_id,
-                    error
-                }));
-            },
-        });
+    let on_listen_failure_stmts =
+        fields
+            .iter()
+            .enumerate()
+            .map(|(enum_n, field)| match field.ident {
+                Some(ref i) => quote! {
+                    self.#i.on_swarm_event(#from_swarm::ListenFailure(#listen_failure {
+                        local_addr,
+                        send_back_addr,
+                        connection_id,
+                        error
+                    }));
+                },
+                None => quote! {
+                    self.#enum_n.on_swarm_event(#from_swarm::ListenFailure(#listen_failure {
+                        local_addr,
+                        send_back_addr,
+                        connection_id,
+                        error
+                    }));
+                },
+            });
 
     // Build the list of statements to put in the body of `on_swarm_event()`
     // for the `FromSwarm::NewListener` variant.
     let on_new_listener_stmts = {
-        data_struct
-            .fields
+        fields
             .iter()
             .enumerate()
             .map(|(field_n, field)| match field.ident {
@@ -398,8 +394,7 @@ fn build_struct(ast: &DeriveInput, data_struct: &DataStruct) -> TokenStream {
     // Build the list of statements to put in the body of `on_swarm_event()`
     // for the `FromSwarm::NewListenAddr` variant.
     let on_new_listen_addr_stmts = {
-        data_struct
-            .fields
+        fields
             .iter()
             .enumerate()
             .map(|(field_n, field)| match field.ident {
@@ -421,8 +416,7 @@ fn build_struct(ast: &DeriveInput, data_struct: &DataStruct) -> TokenStream {
     // Build the list of statements to put in the body of `on_swarm_event()`
     // for the `FromSwarm::ExpiredListenAddr` variant.
     let on_expired_listen_addr_stmts = {
-        data_struct
-            .fields
+        fields
             .iter()
             .enumerate()
             .map(|(field_n, field)| match field.ident {
@@ -444,8 +438,7 @@ fn build_struct(ast: &DeriveInput, data_struct: &DataStruct) -> TokenStream {
     // Build the list of statements to put in the body of `on_swarm_event()`
     // for the `FromSwarm::NewExternalAddr` variant.
     let on_new_external_addr_stmts = {
-        data_struct
-            .fields
+        fields
             .iter()
             .enumerate()
             .map(|(field_n, field)| match field.ident {
@@ -465,8 +458,7 @@ fn build_struct(ast: &DeriveInput, data_struct: &DataStruct) -> TokenStream {
     // Build the list of statements to put in the body of `on_swarm_event()`
     // for the `FromSwarm::ExpiredExternalAddr` variant.
     let on_expired_external_addr_stmts = {
-        data_struct
-            .fields
+        fields
             .iter()
             .enumerate()
             .map(|(field_n, field)| match field.ident {
@@ -486,8 +478,7 @@ fn build_struct(ast: &DeriveInput, data_struct: &DataStruct) -> TokenStream {
     // Build the list of statements to put in the body of `on_swarm_event()`
     // for the `FromSwarm::ListenerError` variant.
     let on_listener_error_stmts = {
-        data_struct
-            .fields
+        fields
             .iter()
             .enumerate()
             .map(|(field_n, field)| match field.ident {
@@ -509,8 +500,7 @@ fn build_struct(ast: &DeriveInput, data_struct: &DataStruct) -> TokenStream {
     // Build the list of statements to put in the body of `on_swarm_event()`
     // for the `FromSwarm::ListenerClosed` variant.
     let on_listener_closed_stmts = {
-        data_struct
-            .fields
+        fields
             .iter()
             .enumerate()
             .map(|(field_n, field)| match field.ident {
@@ -534,8 +524,7 @@ fn build_struct(ast: &DeriveInput, data_struct: &DataStruct) -> TokenStream {
     // The event type is a construction of nested `#either_ident`s of the events of the children.
     // We call `on_connection_handler_event` on the corresponding child.
     let on_node_event_stmts =
-        data_struct
-            .fields
+        fields
             .iter()
             .enumerate()
             .enumerate()
@@ -546,7 +535,7 @@ fn build_struct(ast: &DeriveInput, data_struct: &DataStruct) -> TokenStream {
                     quote! { ev }
                 };
 
-                for _ in 0..data_struct.fields.len() - 1 - enum_n {
+                for _ in 0..fields.len() - 1 - enum_n {
                     elem = quote! { #either_ident::Left(#elem) };
                 }
 
@@ -575,8 +564,7 @@ fn build_struct(ast: &DeriveInput, data_struct: &DataStruct) -> TokenStream {
 
     // The content of `handle_pending_inbound_connection`.
     let handle_pending_inbound_connection_stmts =
-        data_struct
-            .fields
+        fields
             .iter()
             .enumerate()
             .map(|(field_n, field)| {
@@ -616,8 +604,7 @@ fn build_struct(ast: &DeriveInput, data_struct: &DataStruct) -> TokenStream {
     // The content of `handle_pending_outbound_connection`.
     let handle_pending_outbound_connection = {
         let extend_stmts =
-            data_struct
-                .fields
+            fields
                 .iter()
                 .enumerate()
                 .map(|(field_n, field)| {
@@ -644,7 +631,7 @@ fn build_struct(ast: &DeriveInput, data_struct: &DataStruct) -> TokenStream {
     let handle_established_outbound_connection = {
         let mut out_handler = None;
 
-        for (field_n, field) in data_struct.fields.iter().enumerate() {
+        for (field_n, field) in fields.iter().enumerate() {
             let field_name = match field.ident {
                 Some(ref i) => quote! { self.#i },
                 None => quote! { self.#field_n },
@@ -677,7 +664,7 @@ fn build_struct(ast: &DeriveInput, data_struct: &DataStruct) -> TokenStream {
         } else {
             quote!{ event }
         };
-        for _ in 0 .. data_struct.fields.len() - 1 - field_n {
+        for _ in 0 .. fields.len() - 1 - field_n {
             wrapped_event = quote!{ #either_ident::Left(#wrapped_event) };
         }
 
@@ -938,11 +925,16 @@ fn field_is_not_ignored(field: &syn::Field) -> bool {
     field
         .attrs
         .iter()
-        .find_map(|attr| {
-            if attr.path().segments.first()?.ident == "ignore" {
-                return Some(());
-            }
-            None
+        .filter(|attr| attr.path().is_ident("behaviour"))
+        .all(|attr| {
+            let mut ignore = false;
+            attr.parse_nested_meta(|nested| {
+                if nested.path.is_ident("ignore") {
+                    ignore = true;
+                }
+                Ok(())
+            })
+            .unwrap();
+            !ignore
         })
-        .is_none()
 }
