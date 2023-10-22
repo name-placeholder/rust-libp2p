@@ -26,7 +26,7 @@ use crate::{protocol::PublicKey, Error};
 use bytes::{Bytes, BytesMut};
 use futures::prelude::*;
 use futures::ready;
-use log::{debug, trace};
+use log::debug;
 use std::{
     fmt, io,
     pin::Pin,

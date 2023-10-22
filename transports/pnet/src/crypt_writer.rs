@@ -23,12 +23,12 @@ use futures::{
     ready,
     task::{Context, Poll},
 };
-use log::trace;
+//use log::trace;
 use pin_project::pin_project;
 use salsa20::{cipher::StreamCipher, XSalsa20};
 use std::{fmt, pin::Pin};
 
-use libp2p_core::Connection;
+//use libp2p_core::Connection;
 
 /// A writer that encrypts and forwards to an inner writer
 #[pin_project]
@@ -39,6 +39,7 @@ pub(crate) struct CryptWriter<W> {
     cipher: XSalsa20,
 }
 
+/*
 impl<C> Connection for CryptWriter<C>
 where
     C: Connection,
@@ -47,6 +48,7 @@ where
         self.inner.remote_peer_id()
     }
 }
+*/
 
 impl<W: AsyncWrite> CryptWriter<W> {
     /// Creates a new `CryptWriter` with the specified buffer capacity.

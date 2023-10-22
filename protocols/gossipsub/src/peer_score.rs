@@ -26,7 +26,7 @@ use crate::time_cache::TimeCache;
 use crate::{MessageId, TopicHash};
 use instant::Instant;
 use libp2p_identity::PeerId;
-use log::{debug, trace, warn};
+use log::{debug, warn};
 use std::collections::{hash_map, HashMap, HashSet};
 use std::net::IpAddr;
 use std::time::Duration;
@@ -444,7 +444,7 @@ impl PeerScore {
     }
 
     /// Adds a new ip to a peer, if the peer is not yet known creates a new peer_stats entry for it
-    pub fn add_ip(&mut self, peer_id: &PeerId, ip: IpAddr) {
+    pub(crate) fn add_ip(&mut self, peer_id: &PeerId, ip: IpAddr) {
         debug!("Add ip for peer {}, ip: {}", peer_id, ip);
         let peer_stats = self.peer_stats.entry(*peer_id).or_default();
 

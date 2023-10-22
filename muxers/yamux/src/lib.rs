@@ -266,10 +266,12 @@ impl Config {
         }
     }
 
+    /*
     pub fn set_protocol_name(&mut self, name: &'static [u8]) -> &mut Self {
         self.name = name;
         self
     }
+    */
 
     /// Sets the size (in bytes) of the receive window per substream.
     pub fn set_receive_window_size(&mut self, num_bytes: u32) -> &mut Self {

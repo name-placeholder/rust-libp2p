@@ -24,7 +24,7 @@ use asynchronous_codec::Framed;
 use bytes::Bytes;
 use futures::task::{waker_ref, ArcWake, AtomicWaker, WakerRef};
 use futures::{prelude::*, ready, stream::Fuse};
-use log::{debug, trace};
+use log::debug;
 use nohash_hasher::{IntMap, IntSet};
 use parking_lot::Mutex;
 use smallvec::SmallVec;

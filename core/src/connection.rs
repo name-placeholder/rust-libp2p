@@ -20,6 +20,7 @@
 
 use crate::multiaddr::{Multiaddr, Protocol};
 
+/*
 pub trait Connection {
     /// Should be `Some(_)` if transport itself handles authentication.
     fn remote_peer_id(&self) -> Option<crate::PeerId> {
@@ -35,6 +36,7 @@ where
         self.inner_completed_io().and_then(|io| io.remote_peer_id())
     }
 }
+*/
 
 /// The endpoint roles associated with a peer-to-peer communication channel.
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
