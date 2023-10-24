@@ -85,7 +85,7 @@ impl Keypair {
 
     /// Turn this DH keypair into a [`AuthenticKeypair`], i.e. a DH keypair that
     /// is authentic w.r.t. the given identity keypair, by signing the DH public key.
-    pub fn into_authentic(
+    pub(crate) fn into_authentic(
         self,
         id_keys: &identity::Keypair,
     ) -> Result<AuthenticKeypair, Error> {
@@ -112,7 +112,7 @@ impl Keypair {
     }
 
     /// Create a new X25519 keypair.
-    pub fn new() -> Keypair {
+    pub(crate) fn new() -> Keypair {
         let mut sk_bytes = [0u8; 32];
         rand::thread_rng().fill(&mut sk_bytes);
         let sk = SecretKey(sk_bytes); // Copy

@@ -203,6 +203,7 @@ where
 /// The yamux configuration.
 #[derive(Debug, Clone)]
 pub struct Config {
+    name: &'static str,
     inner: yamux::Config,
     mode: Option<yamux::Mode>,
 }
@@ -266,12 +267,10 @@ impl Config {
         }
     }
 
-    /*
-    pub fn set_protocol_name(&mut self, name: &'static [u8]) -> &mut Self {
+    pub fn set_protocol_name(&mut self, name: &'static str) -> &mut Self {
         self.name = name;
         self
     }
-    */
 
     /// Sets the size (in bytes) of the receive window per substream.
     pub fn set_receive_window_size(&mut self, num_bytes: u32) -> &mut Self {
@@ -305,7 +304,7 @@ impl Default for Config {
         // For conformity with mplex, read-after-close on a multiplexed
         // connection is never permitted and not configurable.
         inner.set_read_after_close(false);
-        Config { inner, mode: None }
+        Config { name: "/yamux/1.0.0", inner, mode: None }
     }
 }
 
@@ -314,7 +313,7 @@ impl UpgradeInfo for Config {
     type InfoIter = iter::Once<Self::Info>;
 
     fn protocol_info(&self) -> Self::InfoIter {
-        iter::once("/yamux/1.0.0")
+        iter::once(self.name)
     }
 }
 

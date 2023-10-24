@@ -19,11 +19,12 @@ impl StreamProtocol {
     ///
     /// This function panics if the protocol does not start with a forward slash: `/`.
     pub const fn new(s: &'static str) -> Self {
+        /*
         match s.as_bytes() {
             [b'/', ..] => {}
             _ => panic!("Protocols should start with a /"),
         }
-
+        */
         StreamProtocol {
             inner: Either::Left(s),
         }
@@ -34,9 +35,11 @@ impl StreamProtocol {
     /// This function will fail if the protocol does not start with a forward slash: `/`.
     /// Where possible, you should use [`StreamProtocol::new`] instead to avoid allocations.
     pub fn try_from_owned(protocol: String) -> Result<Self, InvalidProtocol> {
+        /*
         if !protocol.starts_with('/') {
             return Err(InvalidProtocol::missing_forward_slash());
         }
+        */
 
         Ok(StreamProtocol {
             inner: Either::Right(Arc::from(protocol)), // FIXME: Can we somehow reuse the allocation from the owned string?
@@ -93,9 +96,11 @@ pub struct InvalidProtocol {
 }
 
 impl InvalidProtocol {
+    /*
     pub(crate) fn missing_forward_slash() -> Self {
         InvalidProtocol { _private: () }
     }
+    */
 }
 
 impl fmt::Display for InvalidProtocol {
