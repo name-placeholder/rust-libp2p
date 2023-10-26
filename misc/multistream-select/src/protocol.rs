@@ -101,9 +101,9 @@ impl TryFrom<&str> for Protocol {
     type Error = ProtocolError;
 
     fn try_from(value: &str) -> Result<Self, Self::Error> {
-        if !value.starts_with('/') {
-            return Err(ProtocolError::InvalidProtocol);
-        }
+        // if !value.starts_with('/') {
+        //     return Err(ProtocolError::InvalidProtocol);
+        // }
 
         Ok(Protocol(value.to_owned()))
     }
